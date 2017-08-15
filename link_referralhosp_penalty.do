@@ -14,6 +14,34 @@ count
 tempfile penalty
 save `penalty'
 
+*-----------------
+* process the raw hospital-level condition-specific readmission penalty rate from Atul
+
+foreach d in "ami" "chf" "pneum" {
+  insheet using HRRP/hrrp_penalty_`d'.csv, comma names clear
+  keep penaltyrate2012 v16
+  drop if _n < 2
+  rename penaltyrate2012 prvdr_num
+  rename v16 penalty2012_`d'
+  destring penalty2012_`d', replace
+  compress
+  tempfile penalty2012_`d'
+  save `penalty2012_`d''
+}
+
+use `penalty2012_ami', clear
+foreach d in "chf" "pneum" {
+  merge 1:1 prvdr_num using `penalty2012_`d'', nogen
+}
+egen totpenalty2012 = rowtotal(penalty2012_*)
+
+tempfile penalty2
+save `penalty2'
+
+*-----------------
+
+use `penalty', clear
+
 *merge with referral source data
 merge 1:m prvdr_num using referral_mcrID
 *2883 hosp have _m=1 -> 500 hospitals in the readmissions penalty data matched to my data
@@ -89,6 +117,9 @@ drop st _merge
 *merge with readmissions penalty data
 merge m:1 prvdr_num using `penalty', keep(3) nogen
 *2883 hosp have _m=1 -> 500 hospitals in the readmissions penalty data matched to my data
+
+*merge with condition-specific readmissions penalty data
+merge m:1 prvdr_num using `penalty2', keep(1 3) nogen
 
 *count how many hospitals in the Bayada data matched to the penalty data
 preserve

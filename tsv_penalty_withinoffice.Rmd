@@ -1,0 +1,39 @@
+---
+title: "Home health agencies’ penalty exposure"
+author: "Lucy Kim"
+date: "8/11/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+rm(list=ls())
+
+source("/Users/kunheekim/Dropbox/Wharton/Research/Labor/code/summarySE.R")
+require(devtools)
+require(digest)
+library(plyr)
+library(ggplot2)
+library(lubridate)
+require(Hmisc)
+library(pastecs)
+library(zoo) # date
+library(plm)
+library(gplots)
+library(apsrtable)
+library("reshape2")
+library(readr)
+library(reshape)
+library(gtable)
+library(grid)
+```
+
+## plot the within-office variation in the penalty exposure over time using the weighted penalty data for each office-FY
+```{r}
+df <- read.csv("/Users/kunheekim/Dropbox/Research/postacute/data/wgtpenalty.csv")
+
+ggplot(df, aes(x=fy, y=prod)) + facet_wrap(~factor(offid_nu), ncol=10)
+```
+
+
