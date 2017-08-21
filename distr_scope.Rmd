@@ -1,0 +1,179 @@
+---
+title: "Distribution of service disciplines"
+author: "Lucy Kim"
+date: "8/18/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+rm(list=ls())
+
+source("/Users/kunheekim/Dropbox/Wharton/Research/Labor/code/summarySE.R")
+require(devtools)
+require(digest)
+library(plyr)
+library(ggplot2)
+library(lubridate)
+require(Hmisc)
+library(pastecs)
+library(zoo) # date
+library(plm)
+library(gplots)
+library(apsrtable)
+library("reshape2")
+library(readr)
+library(reshape)
+library(gtable)
+library(grid)
+
+theme_set(theme_bw())
+```
+
+## Load data
+```{r}
+df <- read.csv("/Users/kunheekim/Dropbox/Research/postacute/data/distr_scope.csv")
+
+#reorder discipline
+df$gp6 <- factor(df$gp, levels=c("SN", "PT", "OT", "HHa", "ST", "MSW"))
+```
+
+## Plot distribution of workers & visits in different disciplines for each year
+Test using one year
+```{r}
+distr <- function(x) {
+  df2 <- subset(df, yr==x)
+
+  subti <- paste("Year", x, "")
+  print(subti)
+ 
+  # sort by avg total patient census during the year
+  df2 <- df2[order(df2$totnepi_oy), ]  # sort
+  df2$offid_nu <- factor(df2$offid_nu, levels = df2$offid_nu)  # to retain the order in plot
+  head(df2, 4)
+
+  # avg patient census
+  ggplot(df2, aes(x=offid_nu, y=totnepi_oy/6)) + 
+    geom_bar(stat="identity", width=.5, fill="tomato3") + 
+    labs(title="Avg total patient census per week", 
+         x="Office",
+         y="Number of ongoing episodes per week",
+         subtitle=subti) + 
+    theme(axis.text.x = element_text(angle=90, vjust=0.6))
+  ggsave(paste("/Users/kunheekim/Dropbox/Research/postacute/gph/totnepi_oy_", x, ".pdf", sep=""), width=25, height=10, units="cm")  
+  
+  # total # workers
+  ggplot(df2, aes(x=offid_nu, y=nw)) + 
+    geom_bar(stat="identity", width=.5, fill="tomato3") + 
+    labs(title="Avg total number of workers per week", 
+         x="Office",
+         y="Number of active workers per week",
+         subtitle=subti) + 
+    theme(axis.text.x = element_text(angle=90, vjust=0.6))
+  ggsave(paste("/Users/kunheekim/Dropbox/Research/postacute/gph/tnw_", x, ".pdf", sep=""), width=25, height=10, units="cm")  
+  
+  # % workers
+  g <- ggplot(df2, aes(offid_nu, pnw))
+  g + geom_bar(stat="identity", aes(fill=gp6), width = 0.5) + 
+        theme(axis.text.x = element_text(angle=90, vjust=0.6),
+        legend.position="bottom") +
+        guides(fill=guide_legend(nrow=1, byrow=TRUE)) +
+        labs(title="Composition of workers by service discipline", 
+              subtitle=subti, 
+              x="Office",
+              y="% Active workers per week",
+              fill="Discipline",
+              caption="Note: Ordered by the total number of active workers per week")
+    ggsave(paste("/Users/kunheekim/Dropbox/Research/postacute/gph/pnw_", x, ".pdf", sep=""), width=25, height=12, units="cm")  
+    
+  # % visits 
+  g <- ggplot(df2, aes(offid_nu, pnv))
+  g + geom_bar(stat="identity", aes(fill=gp6), width = 0.5) + 
+        theme(axis.text.x = element_text(angle=90, vjust=0.6),
+        legend.position="bottom") +
+        guides(fill=guide_legend(nrow=1, byrow=TRUE)) +
+        labs(title="Composition of visits by service discipline", 
+              subtitle=subti, 
+              x="Office",
+              y="% Visits per week",
+              fill="Discipline",
+              caption="Note: Ordered by the total number of visits per week")
+    ggsave(paste("/Users/kunheekim/Dropbox/Research/postacute/gph/pnv_", x, ".pdf", sep=""), width=25, height=12, units="cm")  
+}
+
+for(y in 2012:2015) {
+  distr(y)
+}
+
+```
+
+## Scatterplot of scale and scope 
+```{r}
+ggplot(df, aes(x=totnw, y=pnw, colour=gp6)) + facet_grid(.~ yr) +
+  geom_smooth() +
+  theme(legend.position="bottom") +
+  guides(colour=guide_legend(nrow=1, byrow=TRUE)) +
+  labs(title="Scale vs scope by service discipline", 
+      x="Mean total number of active workers per week",
+      y="Mean % workers per week",
+      colour="Discipline")
+ggsave("/Users/kunheekim/Dropbox/Research/postacute/gph/totnw_vs_pnw.pdf", width=25, height=12, units="cm")  
+
+ggplot(df, aes(x=totnepi_oy, y=pnw, colour=gp6)) + facet_grid(.~ yr) +
+  geom_smooth() +
+  theme(legend.position="bottom") +
+  guides(colour=guide_legend(nrow=1, byrow=TRUE)) +
+  labs(title="Scale vs scope by service discipline", 
+      x="Mean total patient census per week",
+      y="Mean % workers per week",
+      colour="Discipline")
+ggsave("/Users/kunheekim/Dropbox/Research/postacute/gph/totnepi_oy_vs_pnw.pdf", width=25, height=12, units="cm")  
+        
+```
+
+## Plot distribution of workers in different disciplines for each year
+Test using one year
+```{r}
+df2 <- subset(df, yr==2012)
+
+df2 <- df2[order(df2$totnw), ]  # sort
+df2$offid_nu <- factor(df2$offid_nu, levels = df2$offid_nu)  # to retain the order in plot
+head(df2, 4)
+
+ggplot(df2, aes(x=offid_nu, y=totnw)) + 
+  geom_bar(stat="identity", width=.5, fill="tomato3") + 
+  labs(title="Avg total number of workers per week", 
+       x="Office",
+       y="Number of active workers per week",
+       subtitle="Year 2012") + 
+  theme(axis.text.x = element_text(angle=90, vjust=0.6))
+
+g <- ggplot(df2, aes(offid_nu, pnw))
+g + geom_bar(stat="identity", aes(fill=gp6), width = 0.5) + 
+  theme(axis.text.x = element_text(angle=90, vjust=0.6),
+        legend.position="bottom") +
+  guides(fill=guide_legend(nrow=1, byrow=TRUE)) +
+  labs(title="Composition of workers by service discipline", 
+       subtitle="Year 2012", 
+       x="Office",
+       y="% Active workers per week",
+       fill="Discipline",
+       caption="Note: Ordered by the total number of active workers per week")
+ggsave("/Users/kunheekim/Dropbox/Research/postacute/gph/pnw_2012.pdf", width=25, height=12, units="cm")  
+
+  g <- ggplot(df2, aes(offid_nu, pnv))
+  g + geom_bar(stat="identity", aes(fill=gp6), width = 0.5) + 
+        theme(axis.text.x = element_text(angle=90, vjust=0.6),
+        legend.position="bottom") +
+        guides(fill=guide_legend(nrow=1, byrow=TRUE)) +
+        labs(title="Composition of visits by service discipline", 
+              subtitle=subti, 
+              x="Office",
+              y="% Visits per week",
+              fill="Discipline",
+              caption="Note: Ordered by the total number of visits per week")
+    ggsave(paste("/Users/kunheekim/Dropbox/Research/postacute/gph/pnv_", x, ".pdf", sep=""), width=25, height=12, units="cm")  
+
+```
+
