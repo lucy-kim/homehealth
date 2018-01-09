@@ -1,4 +1,7 @@
 *compare HH efforts by whether patient was before or after 30 days from hospital discharge, penalty pressure, or HRRP or non-HRRP condition
+*create patient-week level data containing referring hospital's penalty pressure, some initial set of effort measures and covariates
+*initial set of effort measures: mean length of visit (per week), # visits, % visits by nurses
+
 loc path /home/hcmg/kunhee/Labor/Bayada_data
 loc gph /home/hcmg/kunhee/Labor/gph
 loc reg /home/hcmg/kunhee/Labor/regresults
@@ -184,6 +187,7 @@ table age5yr, contents(min age max age)
 
 compress
 save HHeffort_visit, replace
+
 *--------------------------
 *regression analysis
 use HHeffort_visit, clear
@@ -195,6 +199,9 @@ tw histogram epilength if i==1, ti("Distribution of the home health episode dura
 graph export `gph'/epilength2.pdf, replace
 
 *--------------------------------
+*create patient episode-week level dataset
+use HHeffort_visit, clear
+
 *create indicator for whether episode had 4 HRRP conditions
 gen hrrpcond = ami==1 | hf==1 | copd==1 | pneu==1
 
@@ -230,19 +237,42 @@ loc comorbid charlindex `overallst' `hrfactor' `priorcond'
 
 loc sp1 `riskhosp'
 loc sp2 `sp1' `demog'
-loc sp3 `sp2' `comorbid' i.fy i.epilength_wk
+loc sp3 `sp2' `comorbid' i.fy
 
 *for mean visit lengths, convert to minutes
 foreach v of varlist mvl* {
   replace `v' = `v'*60
 }
 
+*take logs for # visits & length of visits
+foreach v of varlist mvl* nv* {
+  gen ln`v' = ln(`v')
+}
 *tnv*
 *nv* mvl* pnv*
 
-*analysis of efforts by week
+*analysis of efforts separately by week among those not readmitted
+foreach yv of varlist lnmvl* lnnv* pnv* {
+  loc file HHeffort2_`yv'_allpat
+  capture erase `reg'/`file'.xls
+  capture erase `reg'/`file'.txt
+  capture erase `reg'/`file'.tex
+  loc out "outreg2 using `reg'/`file'.xls, tex dec(3) append"
+
+  forval t=1/9 {
+    areg `yv' z_pnltprs hrrpcond z_pnltprs_X_hrrpcond `sp3' if wk==`t', absorb(offid_nu) vce(cluster offid_nu)
+
+    sum `yv' if e(sample)
+    loc mdv: display %9.2f `r(mean)'
+    loc ar2: display %9.2f `e(r2_a)'
+
+    `out' ctitle(Week `t') keep(z_pnltprs hrrpcond z_pnltprs_X_hrrpcond) label addtext(Adjusted R-squared, `ar2', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y)
+  }
+}
+
+*analysis of efforts separately by week among those not readmitted
 foreach yv of varlist mvl* nv* pnv* {
-  loc file HHeffort2_`yv'
+  loc file HHeffort2_`yv'_nora
   capture erase `reg'/`file'.xls
   capture erase `reg'/`file'.txt
   capture erase `reg'/`file'.tex
@@ -255,7 +285,7 @@ foreach yv of varlist mvl* nv* pnv* {
     loc mdv: display %9.2f `r(mean)'
     loc ar2: display %9.2f `e(r2_a)'
 
-    `out' ctitle(Week `t') keep(z_pnltprs hrrpcond z_pnltprs_X_hrrpcond) label addtext(Adjusted R-squared, `ar2', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Episode duration in weeks FE, Y)
+    `out' ctitle(Week `t') keep(z_pnltprs hrrpcond z_pnltprs_X_hrrpcond) label addtext(Adjusted R-squared, `ar2', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y)
   }
 }
 
@@ -267,6 +297,10 @@ loc l_nvall "# All visits"
 loc l_nvsn "# Nurse visits"
 loc l_pnvall "% All visits"
 loc l_pnvsn "% Nurse visits"
+
+loc sp1 `riskhosp' i.wk
+loc sp2 `sp1' `demog'
+loc sp3 `sp2' `comorbid' i.fy
 
 loc file HHeffort2_allpat
 capture erase `reg'/`file'.xls
@@ -281,7 +315,7 @@ foreach yv of varlist mvl* nv* pnv* {
   loc mdv: display %9.2f `r(mean)'
   loc ar2: display %9.2f `e(r2_a)'
 
-  `out' ctitle(`l_`yv'') keep(z_pnltprs hrrpcond z_pnltprs_X_hrrpcond) label addtext(Adjusted R-squared, `ar2', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Episode duration in weeks FE, Y, Home health week FE, Y)
+  `out' ctitle(`l_`yv'') keep(z_pnltprs hrrpcond z_pnltprs_X_hrrpcond) label addtext(Adjusted R-squared, `ar2', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y)
 }
 
 *non-readmitted pats
@@ -298,5 +332,5 @@ foreach yv of varlist mvl* nv* pnv* {
   loc mdv: display %9.2f `r(mean)'
   loc ar2: display %9.2f `e(r2_a)'
 
-  `out' ctitle(`l_`yv'') keep(z_pnltprs hrrpcond z_pnltprs_X_hrrpcond) label addtext(Adjusted R-squared, `ar2', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Episode duration in weeks FE, Y, Home health week FE, Y)
+  `out' ctitle(`l_`yv'') keep(z_pnltprs hrrpcond z_pnltprs_X_hrrpcond) label addtext(Adjusted R-squared, `ar2', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y)
 }
