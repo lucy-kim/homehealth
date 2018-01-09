@@ -43,7 +43,7 @@ save `penalty2'
 use `penalty', clear
 
 *merge with referral source data
-merge 1:m prvdr_num using referral_mcrID
+merge 1:m prvdr_num using referralhosp_mcrID
 *2883 hosp have _m=1 -> 500 hospitals in the readmissions penalty data matched to my data
 
 *_m=2 hospitals include those in Maryland (Medicare ID start with "21") that's excempt from the HRRP

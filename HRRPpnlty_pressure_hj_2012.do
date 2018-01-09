@@ -1,4 +1,4 @@
-* test if the referral share has declined because hospital facing high penalty shifting their referrals to in-house home health care provider
+*compute penalty pressure: use 2012 data, product of share of the office j's patients that come from hosp h and h's penalty rate
 
 loc path /home/hcmg/kunhee/Labor/Bayada_data
 loc gph /home/hcmg/kunhee/Labor/gph

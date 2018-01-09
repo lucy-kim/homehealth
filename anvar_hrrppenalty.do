@@ -1,4 +1,4 @@
-* anvar_incentive.do
+* anvar_hrrppenalty.do
 * how much pressure from hospitals does each office get?
 * within-office over-time variation in incentive/pressure for hospitals to decrease readmissions
 

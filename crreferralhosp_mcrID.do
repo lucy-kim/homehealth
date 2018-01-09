@@ -289,7 +289,7 @@ duplicates drop
 *yr is the Year of SOC date
 
 compress
-save referral_mcrID, replace
+save referralhosp_mcrID.dta, replace
 
 *-------------
 * how many hospitals appear in the referral source data?
