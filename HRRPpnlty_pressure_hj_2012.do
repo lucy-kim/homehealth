@@ -109,7 +109,7 @@ save `shref_hj2012'
 *--------------
 *get 2012 penalty rate to calculate penalty pressure for each office j - hospital h pair later
 use hrrp_penalty, clear
-keep totpenalty2012 prvdr_num
+keep totpenalty2012 prvdr_num penalty2012_*
 duplicates drop
 
 *rename fyear fy
@@ -136,6 +136,20 @@ gen pnltprs = shref_hj * totpenalty2012
 *create the z-score penalty pressure
 egen z_pnltprs = std(pnltprs)
 sum z_pnltprs, de
+
+rename penalty2012_chf penalty2012_hf
+rename penalty2012_pneum penalty2012_pn
+
+foreach d in "ami" "hf" "pn" {
+  capture drop pnltprs_`d'
+  gen pnltprs_`d' = shref_hj * penalty2012_`d'
+
+  capture drop z_pnltprs_`d'
+  egen z_pnltprs_`d' = std(pnltprs_`d')
+  sum z_pnltprs_`d'
+}
+
+
 
 compress
 save HRRPpnlty_pressure_hj_2012, replace

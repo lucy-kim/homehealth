@@ -33,3 +33,12 @@ The codes below are in chronological order.
 
 **HHeffort2.do**
 - compare HH efforts by whether patient was before or after 30 days from hospital discharge, penalty pressure, or HRRP or non-HRRP condition
+
+**HHeffort_exper_visitorder.do**
+- add more measures of home health office's efforts at the patient episode level: mean experience of nurses serving patients, order of nurse's visit during the day
+
+**crHHeffort_week.do**
+- create patient-week level data containing referring hospital's penalty pressure, some initial set of effort measures and covariates
+
+**HHeffort3.do**
+- Run regression analysis using the patient-week level data to compare HH efforts by (whether patient was before or after 30 days from hospital discharge), penalty pressure, or HRRP or non-HRRP condition
