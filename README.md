@@ -42,3 +42,9 @@ The codes below are in chronological order.
 
 **HHeffort3.do**
 - Run regression analysis using the patient-week level data to compare HH efforts by (whether patient was before or after 30 days from hospital discharge), penalty pressure, or HRRP or non-HRRP condition
+
+**HHeffort4.do**
+- Compare HH efforts, readmissions (Reduced form model) by penalty pressure & HRRP or non-HRRP condition & TA vs MA patients
+
+**HHeffort5.do**
+- Compare HH efforts, readmissions (Reduced form model) by penalty pressure & TA vs MA patients (don't differentiate by penalty vs non-penalty condition and use the overall penalty pressure)

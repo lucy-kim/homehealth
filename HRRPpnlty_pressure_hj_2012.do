@@ -149,10 +149,28 @@ foreach d in "ami" "hf" "pn" {
   sum z_pnltprs_`d'
 }
 
-
-
 compress
 save HRRPpnlty_pressure_hj_2012, replace
+
+*--------------
+*plot the penalty for 2012 vs actual penalty for 2013
+use hrrp_penalty, clear
+keep if fy==2013
+keep penalty prvdr_num
+destring prvdr_num, replace
+merge 1:m prvdr_num using HRRPpnlty_pressure_hj_2012, keep(2 3) nogen
+
+scatter penalty totpenalty2012 if totpenalty2012 <=1 & & pnltprs < 0.1, yti(Actual penalty rate in 2013) xti(Penalty rate in 2012) ti(Actual penalty rate in 2013 vs Penalty rate in 2012)
+graph export `gph'/pnltr_1213.eps, replace
+
+binscatter penalty totpenalty2012 if totpenalty2012<=1, yti(Actual penalty rate in 2013) xti(Penalty rate in 2012) ti(Actual penalty rate in 2013 vs Penalty rate in 2012)
+graph export `gph'/pnltr_1213.eps, replace
+
+
+*plot the penalty rate for 2012 vs penalty pressure (2012 penalty rate X share of referrals)
+binscatter pnltprs totpenalty2012 if totpenalty2012 <=1, yti("2012 penalty rate X 2012 Share of referrals from the hospital", size(small)) xti(Penalty rate in 2012) ti(Penalty pressure vs Penalty rate in 2012)
+graph export `gph'/pnltr12_pnltprs.eps, replace
+
 
 *--------------
 *plot the distribution of penalty pressure across office-hospitals
