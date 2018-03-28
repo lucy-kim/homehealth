@@ -161,14 +161,14 @@ list epiid visitdate discipline jobcode status tnvsn tnvsn_ft firsthospdate tfnv
 
 *wkidx
 *leave observations unique at the episode level
-keep epiid startHH_1day freq_tnvall freq_tnvsn freq_nvall_wk1 freq_nvsn_wk1 tho tfnv hashosp30 mvl* tnv* tfho
+keep epiid startHH_1day freq_tnvall freq_tnvsn freq_nvall_wk1 freq_nvsn_wk1 tho tfnv hashosp30 mvl* tnv* tfho inpat_dcd
 duplicates drop
 
 tempfile moreoutcome
 save `moreoutcome'
 
 use `an', clear
-drop mvl* tnv* lnmvl*
+drop mvl* tnv*
 merge m:1 epiid using `moreoutcome', keep(3) nogen
 
 *take logs for frequency of visits, # handoffs, mean # visits & length of visits
@@ -197,6 +197,41 @@ lab var lnfreq_nvsn_wk1 "Ln Frequency of nurse visits in first week"
 lab var tfho "Fraction of nurse handoffs"
 lab var tfnv "Fraction of full-time nurse visits"
 lab var startHH_1day "Starting home health within one day from hospital discharge"
+
+*replace the 2012 hypothetical penalty rate with 2013 penalty rate & reconstruct the penalty pressure
+merge m:1 offid_nu prvdr_num using HRRPpnlty_pressure_hj_2012, keepusing(pnltprs13 z_pnltprs13) keep(1 3) nogen
+
+*estimate triple DDD: penalty pressure X HRRP condition X MA patients
+capture drop z_pnltprs13_X_tm
+gen z_pnltprs13_X_tm = z_pnltprs13 * tm
+lab var z_pnltprs13_X_tm "Overall penalty pressure in 2013 X TM"
+lab var z_pnltprs13 "Overall penalty pressure in 2013"
+
+*add the summary resource spending measure for each episode
+capture drop epilvl_vtc-vtc_tr_payST
+merge m:1 epiid using resource_index, keep(1 3) nogen
+
+foreach v of varlist epilvl_vtc epilvl_vtc_tr epilvl_vtc_tr_pay {
+  qui count if `v'==0
+  di "`v' has `r(N)' obs with 0 values"
+  gen l`v' = log(`v'+1)
+  sum `v', de
+  drop if `v' < `r(p1)'
+}
+lab var lepilvl_vtc_tr_pay "Log Total visit costs (incl. transportation and pays)"
+lab var lepilvl_vtc_tr "Log Total visit costs (incl. transportation)"
+lab var lepilvl_vtc "Log Total visit costs"
+
+preserve
+use office, clear
+keep offid_nu addr_st
+duplicates drop
+tempfile office_st
+save `office_st'
+restore
+
+merge m:1 offid_nu using `office_st', keep(1 3) nogen
+gen con = addr_st=="NC" | addr_st=="NJ" | addr_st=="VT"
 
 compress
 save HHeffort5, replace
@@ -229,6 +264,9 @@ loc l_lnfreq_nvsn_wk1 "Ln Frequency of nurse visits in first week"
 loc l_tfho "Fraction of nurse handoffs"
 loc l_tfnv "Fraction of full-time nurse visits"
 loc l_startHH_1day "Starting home health within one day from hospital discharge"
+loc l_lepilvl_vtc_tr_pay "Log Total visit costs (incl. transportation and pays)"
+loc l_lepilvl_vtc_tr "Log Total visit costs (incl. transportation)"
+loc l_lepilvl_vtc "Log Total visit costs"
 
 
 loc sp1 `riskhosp'
@@ -244,10 +282,10 @@ tab ma if ami==1, summarize(z_pnltprs)
 tab ma if pn==1, summarize(z_pnltprs)
 table ma, contents(mean ami mean hf mean pn)
 
-loc outcome lnmvl lnmvlsn lntnvall lntnvsn lnfreq_tnvall lnfreq_tnvsn lnfreq_nvall_wk1 lnfreq_nvsn_wk1 tfho tfnv startHH_1day
+loc outcome lepilvl_vtc_tr lepilvl_vtc_tr_pay lnmvl lnmvlsn lntnvall lntnvsn lnfreq_tnvall lnfreq_tnvsn lnfreq_nvall_wk1 lnfreq_nvsn_wk1 tfho tfnv startHH_1day
 
 drop if wkidx == epilength_wk
-keep epiid tm z_pnltprs_X_tm `sp1' age5yr female white noassist livealone dual `comorbid' offid_nu fy `outcome' hashosp hrrpcond cardioresp cardiovas neuro medicine
+keep epiid tm z_pnltprs* `sp1' age5yr female white noassist livealone dual `comorbid' offid_nu fy `outcome' hashosp hrrpcond cardioresp cardiovas neuro medicine lepilvl*
 duplicates drop
 duplicates tag epiid, gen(dup)
 assert dup==0
@@ -255,6 +293,11 @@ drop dup
 
 tempfile an2
 save `an2'
+
+
+use `an2', clear
+*drop CON states
+drop if con==1
 
 loc sp3 `sp2' `comorbid' i.fy
 
@@ -264,17 +307,19 @@ capture erase `reg'/`file'.txt
 capture erase `reg'/`file'.tex
 loc out "outreg2 using `reg'/`file'.xls, tex dec(3) append nocons label"
 
+loc pp tm z_pnltprs13 z_pnltprs13_X_tm
+
 foreach yv of varlist `outcome' {
-  areg `yv' tm z_pnltprs_X_tm `sp3' , absorb(offid_nu) vce(cluster offid_nu)
+  areg `yv' `pp' `sp3' , absorb(offid_nu) vce(cluster offid_nu)
   *if hashosp==0
   sum `yv' if e(sample)
   loc mdv: display %9.2f `r(mean)'
   loc ar2: display %9.2f `e(r2_a)'
 
-  test
+  qui test
   loc fstat: display %9.2f `r(F)'
 
-  `out' ctitle(`l_`yv'') keep(tm z_pnltprs_X_tm) addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
+  `out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
 }
 
 * by penalty condition vs non-penalty condition patients
@@ -286,22 +331,24 @@ forval x = 0/1 {
   loc out "outreg2 using `reg'/`file'.xls, tex dec(3) append nocons label"
 
   foreach yv of varlist `outcome' {
-    areg `yv' tm z_pnltprs_X_tm `sp3' if hrrpcond==`x', absorb(offid_nu) vce(cluster offid_nu)
+    areg `yv' `pp' `sp3' if hrrpcond==`x', absorb(offid_nu) vce(cluster offid_nu)
     *if hashosp==0
     sum `yv' if e(sample)
     loc mdv: display %9.2f `r(mean)'
     loc ar2: display %9.2f `e(r2_a)'
 
-    test
+    qui test
     loc fstat: display %9.2f `r(F)'
 
-    `out' ctitle(`l_`yv'') keep(tm z_pnltprs_X_tm) addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
+    `out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
   }
 }
 
 
 *--------
 *non-readmitted pats
+loc pp tm z_pnltprs13 z_pnltprs13_X_tm
+
 loc file HHeffort5_norapat
 capture erase `reg'/`file'.xls
 capture erase `reg'/`file'.txt
@@ -309,7 +356,7 @@ capture erase `reg'/`file'.tex
 loc out "outreg2 using `reg'/`file'.xls, tex dec(3) append nocons label"
 
 foreach yv of varlist `outcome' {
-  areg `yv' tm z_pnltprs_X_tm `sp3' if hashosp==0, absorb(offid_nu) vce(cluster offid_nu)
+  areg `yv' `pp' `sp3' if hashosp==0, absorb(offid_nu) vce(cluster offid_nu)
   *if hashosp==0
   sum `yv' if e(sample)
   loc mdv: display %9.2f `r(mean)'
@@ -318,7 +365,7 @@ foreach yv of varlist `outcome' {
   test
   loc fstat: display %9.2f `r(F)'
 
-  `out' ctitle(`l_`yv'') keep(tm z_pnltprs_X_tm) addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
+  `out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
 }
 
 * by penalty condition vs non-penalty condition patients
@@ -330,7 +377,7 @@ forval x = 0/1 {
   loc out "outreg2 using `reg'/`file'.xls, tex dec(3) append nocons label"
 
   foreach yv of varlist `outcome' {
-    areg `yv' tm z_pnltprs_X_tm `sp3' if hashosp==0, absorb(offid_nu) vce(cluster offid_nu)
+    areg `yv' `pp' `sp3' if hashosp==0 & hrrpcond==`x', absorb(offid_nu) vce(cluster offid_nu)
     *if hashosp==0
     sum `yv' if e(sample)
     loc mdv: display %9.2f `r(mean)'
@@ -339,7 +386,7 @@ forval x = 0/1 {
     test
     loc fstat: display %9.2f `r(F)'
 
-    `out' ctitle(`l_`yv'') keep(tm z_pnltprs_X_tm) addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
+    `out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
   }
 }
 
@@ -348,6 +395,10 @@ forval x = 0/1 {
 *for readmission indicator, include last week of episode
 use HHeffort5, clear
 
+drop if con==1
+
+loc pp tm z_pnltprs13 z_pnltprs13_X_tm
+
 loc file HHeffort5_read
 capture erase `reg'/`file'.xls
 capture erase `reg'/`file'.txt
@@ -355,44 +406,71 @@ capture erase `reg'/`file'.tex
 loc out "outreg2 using `reg'/`file'.xls, tex dec(3) label append nocons"
 
 loc yv hospoccur
-areg `yv' tm z_pnltprs_X_tm `sp3' i.wkidx if hashosp30==1, absorb(offid_nu) vce(cluster offid_nu)
+areg `yv' `pp' `sp3' i.wkidx if hashosp30==1, absorb(offid_nu) vce(cluster offid_nu)
 *if hashosp==0
 sum `yv' if e(sample)
 loc mdv: display %9.2f `r(mean)'
 loc ar2: display %9.2f `e(r2_a)'
 
-test
+qui test
 loc fstat: display %9.2f `r(F)'
 
-`out' ctitle(`l_`yv'') keep(tm z_pnltprs_X_tm) addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
+`out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
 
 loc penalty0 "Non-penalty conditions"
 loc penalty1 "Penalty conditions"
 forval x=0/1 {
   loc yv hospoccur
-  areg `yv' tm z_pnltprs_X_tm `sp3' i.wkidx if hashosp30==1 & hrrpcond==`x', absorb(offid_nu) vce(cluster offid_nu)
+  areg `yv' `pp' `sp3' i.wkidx if hashosp30==1 & hrrpcond==`x', absorb(offid_nu) vce(cluster offid_nu)
   *if hashosp==0
   sum `yv' if e(sample)
   loc mdv: display %9.2f `r(mean)'
   loc ar2: display %9.2f `e(r2_a)'
 
-  test
+  qui test
   loc fstat: display %9.2f `r(F)'
 
-  `out' ctitle(`penalty`x'') keep(tm z_pnltprs_X_tm) addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
+  `out' ctitle(`penalty`x'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
 }
-*--------
-*non-readmitted pats
 
-foreach yv of varlist lnmvl* lnnv* {
-  areg `yv' ami hf pn tm pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn ami_tm hf_tm pn_tm pnltprs_c_X_ami_X_tm pnltprs_c_X_hf_X_tm pnltprs_c_X_pn_X_tm `sp3' i.wkidx if hashosp==0 & wkidx != epilength_wk, absorb(offid_nu) vce(cluster offid_nu)
+*------------------------
+* run endogenous OLS regression
+
+use HHeffort5, clear
+
+drop if con==1
+loc pp lepilvl_vtc_tr_pay
+
+loc file HHeffort5_read_ols
+capture erase `reg'/`file'.xls
+capture erase `reg'/`file'.txt
+capture erase `reg'/`file'.tex
+loc out "outreg2 using `reg'/`file'.xls, tex dec(3) label append nocons"
+
+loc yv hospoccur
+areg `yv' `pp' `sp3' i.wkidx if hashosp30==1, absorb(offid_nu) vce(cluster offid_nu)
+*if hashosp==0
+sum `yv' if e(sample)
+loc mdv: display %9.2f `r(mean)'
+loc ar2: display %9.2f `e(r2_a)'
+
+qui test
+loc fstat: display %9.2f `r(F)'
+
+`out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
+
+loc penalty0 "Non-penalty conditions"
+loc penalty1 "Penalty conditions"
+forval x=0/1 {
+  loc yv hospoccur
+  areg `yv' `pp' `sp3' i.wkidx if hashosp30==1 & hrrpcond==`x', absorb(offid_nu) vce(cluster offid_nu)
   *if hashosp==0
   sum `yv' if e(sample)
   loc mdv: display %9.2f `r(mean)'
   loc ar2: display %9.2f `e(r2_a)'
 
-  test
+  qui test
   loc fstat: display %9.2f `r(F)'
 
-  `out' ctitle(`l_`yv'') keep(ami hf pn tm pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn ami_tm hf_tm pn_tm pnltprs_c_X_ami_X_tm pnltprs_c_X_hf_X_tm pnltprs_c_X_pn_X_tm) addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
+  `out' ctitle(`penalty`x'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
 }

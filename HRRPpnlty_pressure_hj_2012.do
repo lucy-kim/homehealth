@@ -149,6 +149,26 @@ foreach d in "ami" "hf" "pn" {
   sum z_pnltprs_`d'
 }
 
+*--------------
+*use actual penatly rate in 2013 & reconstruct the penalty pressure
+preserve
+use hrrp_penalty, clear
+keep if fy==2013
+keep prvdr_num penalty
+duplicates drop
+destring prvdr_num, replace
+tempfile penalty13
+save `penalty13'
+restore
+
+merge m:1 prvdr_num using `penalty13', keep(1 3) nogen
+rename penalty penalty13
+
+*create the z-score penalty pressure
+gen pnltprs13 = shref_hj * penalty13
+egen z_pnltprs13 = std(pnltprs13)
+sum z_pnltprs13, de
+
 compress
 save HRRPpnlty_pressure_hj_2012, replace
 
