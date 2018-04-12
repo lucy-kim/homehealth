@@ -33,6 +33,7 @@ foreach d in "ami" "hf" "copd" "pn" {
 * HF: ynel1=1
 * COPD: ynel9=1
 * pn: no indicator
+
 *--------------------------------
 
 *get mean visit length per week for each condition idenfied by the Elixhauser (has more specific categories)
@@ -128,6 +129,22 @@ restore
 *---------------------------------
 *run regressions
 use HHeffort_week, clear
+
+*how many MA patients
+gen ma = ma_epi==1 | ma_visit==1
+gen tm = 1-ma
+lab var ma "Medicare Advantage"
+lab var tm "Traditional Medicare"
+
+* tag a week of readmission
+bys epiid: egen lwk = max(wkidx)
+gen hospoccur = hashosp==1 & wkidx==lwk
+tab hospoccur
+drop lwk
+
+*drop copd patients
+drop if copd==1
+
 
 *drop outliers:
 sum mvl* nv* mtenure_esd mvisitorder, de
