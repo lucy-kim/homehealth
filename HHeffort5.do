@@ -34,6 +34,7 @@ capture rename pneu pn
 
 *if not HRRP conditions, should be one of the 4 diagnosis CCS categories
 merge m:1 clientid socdate_e using `nontarget', keep(1 3) nogen
+count if hrrpcond==0 & !(cardioresp==1 | cardiovas==1 | neuro==1 | medicine==1)
 drop if hrrpcond==0 & !(cardioresp==1 | cardiovas==1 | neuro==1 | medicine==1)
 
 *how many MA patients
@@ -297,7 +298,7 @@ save `an2'
 
 use `an2', clear
 *drop CON states
-drop if con==1
+*drop if con==1
 
 loc sp3 `sp2' `comorbid' i.fy
 
@@ -307,7 +308,8 @@ capture erase `reg'/`file'.txt
 capture erase `reg'/`file'.tex
 loc out "outreg2 using `reg'/`file'.xls, tex dec(3) append nocons label"
 
-loc pp tm z_pnltprs13 z_pnltprs13_X_tm
+*loc pp tm z_pnltprs13 z_pnltprs13_X_tm
+loc pp tm z_pnltprs z_pnltprs_X_tm
 
 foreach yv of varlist `outcome' {
   areg `yv' `pp' `sp3' , absorb(offid_nu) vce(cluster offid_nu)
@@ -347,7 +349,8 @@ forval x = 0/1 {
 
 *--------
 *non-readmitted pats
-loc pp tm z_pnltprs13 z_pnltprs13_X_tm
+*loc pp tm z_pnltprs13 z_pnltprs13_X_tm
+loc pp tm z_pnltprs z_pnltprs_X_tm
 
 loc file HHeffort5_norapat
 capture erase `reg'/`file'.xls
@@ -395,9 +398,10 @@ forval x = 0/1 {
 *for readmission indicator, include last week of episode
 use HHeffort5, clear
 
-drop if con==1
+*drop if con==1
 
-loc pp tm z_pnltprs13 z_pnltprs13_X_tm
+*loc pp tm z_pnltprs13 z_pnltprs13_X_tm
+loc pp tm z_pnltprs z_pnltprs_X_tm
 
 loc file HHeffort5_read
 capture erase `reg'/`file'.xls
@@ -438,7 +442,7 @@ forval x=0/1 {
 
 use HHeffort5, clear
 
-drop if con==1
+*drop if con==1
 loc pp lepilvl_vtc_tr_pay
 
 loc file HHeffort5_read_ols

@@ -261,8 +261,10 @@ capture erase `reg'/`file'.txt
 capture erase `reg'/`file'.tex
 loc out "outreg2 using `reg'/`file'.xls, tex dec(3) append nocons label"
 
+loc pp ami hf pn pnltprs pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn
+
 foreach yv of varlist lnmvl* lnnv*  {
-  areg `yv' ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn `sp3' i.wkidx if wkidx != epilength_wk, absorb(offid_nu) vce(cluster offid_nu)
+  areg `yv' `pp' `sp3' i.wkidx if wkidx != epilength_wk, absorb(offid_nu) vce(cluster offid_nu)
   *if hashosp==0
   sum `yv' if e(sample)
   loc mdv: display %9.2f `r(mean)'
@@ -271,12 +273,12 @@ foreach yv of varlist lnmvl* lnnv*  {
   test
   loc fstat: display %9.2f `r(F)'
 
-  `out' ctitle(`l_`yv'') keep(ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn) addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
+  `out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
 }
 
 *for readmission indicator, include last week of episode
 loc yv hospoccur
-areg `yv' ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn `sp3' i.wkidx, absorb(offid_nu) vce(cluster offid_nu)
+areg `yv' `pp' `sp3' i.wkidx, absorb(offid_nu) vce(cluster offid_nu)
 *if hashosp==0
 sum `yv' if e(sample)
 loc mdv: display %9.2f `r(mean)'
@@ -285,7 +287,7 @@ loc ar2: display %9.2f `e(r2_a)'
 test
 loc fstat: display %9.2f `r(F)'
 
-`out' ctitle(`l_`yv'') keep(ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn) addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
+`out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
 
 *non-readmitted pats
 loc file HHeffort4_norapat
@@ -295,7 +297,7 @@ capture erase `reg'/`file'.tex
 loc out "outreg2 using `reg'/`file'.xls, tex dec(3) label append nocons"
 
 foreach yv of varlist lnmvl* lnnv* {
-  areg `yv' ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn `sp3' i.wkidx if hashosp==0 & wkidx != epilength_wk, absorb(offid_nu) vce(cluster offid_nu)
+  areg `yv' `pp' `sp3' i.wkidx if hashosp==0 & wkidx != epilength_wk, absorb(offid_nu) vce(cluster offid_nu)
   *if hashosp==0
   sum `yv' if e(sample)
   loc mdv: display %9.2f `r(mean)'
@@ -304,7 +306,7 @@ foreach yv of varlist lnmvl* lnnv* {
   test
   loc fstat: display %9.2f `r(F)'
 
-  `out' ctitle(`l_`yv'') keep(ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn) addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
+  `out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
 }
 *---------------
 *use the episode as a unit of obs, not episode-week; so exclude week FE
@@ -334,7 +336,7 @@ loc sp2 `sp1' `demog'
 loc sp3 `sp2' `comorbid' i.fy
 
 *keep one row per episode
-keep `yv' `riskhosp' age5yr female white noassist livealone dual  `comorbid' fy ma offid_nu ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn epiid hashosp
+keep `yv' `riskhosp' age5yr female white noassist livealone dual  `comorbid' fy ma offid_nu `pp' epiid hashosp
 duplicates drop
 duplicates tag epiid, gen(dup)
 assert dup==0
@@ -355,8 +357,9 @@ capture erase `reg'/`file'.txt
 capture erase `reg'/`file'.tex
 loc out "outreg2 using `reg'/`file'.xls, tex dec(3) append nocons label"
 
+
 foreach yv of varlist startHH_1day lnfreq_tnvall lnfreq_tnvsn lnfreq_nvsn_wk1 tfho tfnv {
-  areg `yv' ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn `sp3', absorb(offid_nu) vce(cluster offid_nu)
+  areg `yv' `pp' `sp3', absorb(offid_nu) vce(cluster offid_nu)
   *if hashosp==0
   sum `yv' if e(sample)
   loc mdv: display %9.2f `r(mean)'
@@ -365,7 +368,7 @@ foreach yv of varlist startHH_1day lnfreq_tnvall lnfreq_tnvsn lnfreq_nvsn_wk1 tf
   test
   loc fstat: display %9.2f `r(F)'
 
-  `out' ctitle(`l_`yv'') keep(ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn) addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
+  `out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
 }
 
 *non-readmitted pats
@@ -376,7 +379,7 @@ capture erase `reg'/`file'.tex
 loc out "outreg2 using `reg'/`file'.xls, tex dec(3) append nocons label"
 
 foreach yv of varlist startHH_1day lnfreq_tnvall lnfreq_tnvsn lnfreq_nvsn_wk1 tfho tfnv {
-  areg `yv' ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn `sp3' if hashosp==0, absorb(offid_nu) vce(cluster offid_nu)
+  areg `yv' `pp' `sp3' if hashosp==0, absorb(offid_nu) vce(cluster offid_nu)
 
   sum `yv' if e(sample)
   loc mdv: display %9.2f `r(mean)'
@@ -385,7 +388,7 @@ foreach yv of varlist startHH_1day lnfreq_tnvall lnfreq_tnvsn lnfreq_nvsn_wk1 tf
   test
   loc fstat: display %9.2f `r(F)'
 
-  `out' ctitle(`l_`yv'') keep(ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn) addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
+  `out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
 }
 
 
@@ -434,8 +437,13 @@ capture erase `reg'/`file'.txt
 capture erase `reg'/`file'.tex
 loc out "outreg2 using `reg'/`file'.xls, tex dec(3) append nocons label"
 
+loc pp ami hf pn pnltprs_c pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn
+loc pp ami hf pn tm pnltprs_c pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn pnltprs_c_X_tm ami_hf ami_pn ami_tm hf_pn hf_tm pn_tm pnltprs_c_X_ami_X_tm pnltprs_c_X_hf_X_tm pnltprs_c_X_pn_X_tm
+*ami_hf ami_pn hf_pn should drop out
+*ami hf pn tm pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn ami_tm hf_tm pn_tm pnltprs_c_X_ami_X_tm pnltprs_c_X_hf_X_tm pnltprs_c_X_pn_X_tm
+
 foreach yv of varlist lnmvl* lnnv*  {
-  areg `yv' ami hf pn tm pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn ami_tm hf_tm pn_tm pnltprs_c_X_ami_X_tm pnltprs_c_X_hf_X_tm pnltprs_c_X_pn_X_tm `sp3' i.wkidx if wkidx != epilength_wk, absorb(offid_nu) vce(cluster offid_nu)
+  areg `yv' `pp' `sp3' i.wkidx if wkidx != epilength_wk, absorb(offid_nu) vce(cluster offid_nu)
   *if hashosp==0
   sum `yv' if e(sample)
   loc mdv: display %9.2f `r(mean)'
@@ -444,12 +452,12 @@ foreach yv of varlist lnmvl* lnnv*  {
   test
   loc fstat: display %9.2f `r(F)'
 
-  `out' ctitle(`l_`yv'') keep(ami hf pn tm pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn ami_tm hf_tm pn_tm pnltprs_c_X_ami_X_tm pnltprs_c_X_hf_X_tm pnltprs_c_X_pn_X_tm) addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
+  `out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
 }
 
 *for readmission indicator, include last week of episode
 loc yv hospoccur
-areg `yv' ami hf pn tm pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn ami_tm hf_tm pn_tm pnltprs_c_X_ami_X_tm pnltprs_c_X_hf_X_tm pnltprs_c_X_pn_X_tm `sp3' i.wkidx, absorb(offid_nu) vce(cluster offid_nu)
+areg `yv' `pp' `sp3' i.wkidx, absorb(offid_nu) vce(cluster offid_nu)
 *if hashosp==0
 sum `yv' if e(sample)
 loc mdv: display %9.2f `r(mean)'
@@ -458,7 +466,7 @@ loc ar2: display %9.2f `e(r2_a)'
 test
 loc fstat: display %9.2f `r(F)'
 
-`out' ctitle(`l_`yv'') keep(ami hf pn tm pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn ami_tm hf_tm pn_tm pnltprs_c_X_ami_X_tm pnltprs_c_X_hf_X_tm pnltprs_c_X_pn_X_tm) addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
+`out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
 
 *non-readmitted pats
 loc file HHeffort4_norapat_3d
@@ -468,7 +476,7 @@ capture erase `reg'/`file'.tex
 loc out "outreg2 using `reg'/`file'.xls, tex dec(3) label append nocons"
 
 foreach yv of varlist lnmvl* lnnv* {
-  areg `yv' ami hf pn tm pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn ami_tm hf_tm pn_tm pnltprs_c_X_ami_X_tm pnltprs_c_X_hf_X_tm pnltprs_c_X_pn_X_tm `sp3' i.wkidx if hashosp==0 & wkidx != epilength_wk, absorb(offid_nu) vce(cluster offid_nu)
+  areg `yv' `pp' `sp3' i.wkidx if hashosp==0 & wkidx != epilength_wk, absorb(offid_nu) vce(cluster offid_nu)
   *if hashosp==0
   sum `yv' if e(sample)
   loc mdv: display %9.2f `r(mean)'
@@ -477,7 +485,7 @@ foreach yv of varlist lnmvl* lnnv* {
   test
   loc fstat: display %9.2f `r(F)'
 
-  `out' ctitle(`l_`yv'') keep(ami hf pn tm pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn ami_tm hf_tm pn_tm pnltprs_c_X_ami_X_tm pnltprs_c_X_hf_X_tm pnltprs_c_X_pn_X_tm) addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
+  `out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
 }
 *---------------
 *use the episode as a unit of obs, not episode-week; so exclude week FE
@@ -526,7 +534,7 @@ capture erase `reg'/`file'.tex
 loc out "outreg2 using `reg'/`file'.xls, tex dec(3) append nocons label"
 
 foreach yv of varlist startHH_1day lnfreq_tnvall lnfreq_tnvsn lnfreq_nvsn_wk1 tfho tfnv {
-  areg `yv' ami hf pn tm pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn ami_tm hf_tm pn_tm pnltprs_c_X_ami_X_tm pnltprs_c_X_hf_X_tm pnltprs_c_X_pn_X_tm `sp3', absorb(offid_nu) vce(cluster offid_nu)
+  areg `yv' `pp' `sp3', absorb(offid_nu) vce(cluster offid_nu)
   *if hashosp==0
   sum `yv' if e(sample)
   loc mdv: display %9.2f `r(mean)'
@@ -535,7 +543,7 @@ foreach yv of varlist startHH_1day lnfreq_tnvall lnfreq_tnvsn lnfreq_nvsn_wk1 tf
   test
   loc fstat: display %9.2f `r(F)'
 
-  `out' ctitle(`l_`yv'') keep(ami hf pn tm pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn ami_tm hf_tm pn_tm pnltprs_c_X_ami_X_tm pnltprs_c_X_hf_X_tm pnltprs_c_X_pn_X_tm) addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
+  `out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
 }
 
 *non-readmitted pats
@@ -546,7 +554,7 @@ capture erase `reg'/`file'.tex
 loc out "outreg2 using `reg'/`file'.xls, tex dec(3) append nocons label"
 
 foreach yv of varlist startHH_1day lnfreq_tnvall lnfreq_tnvsn lnfreq_nvsn_wk1 tfho tfnv {
-  areg `yv' ami hf pn tm pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn ami_tm hf_tm pn_tm pnltprs_c_X_ami_X_tm pnltprs_c_X_hf_X_tm pnltprs_c_X_pn_X_tm `sp3' if hashosp==0, absorb(offid_nu) vce(cluster offid_nu)
+  areg `yv' `pp' `sp3' if hashosp==0, absorb(offid_nu) vce(cluster offid_nu)
 
   sum `yv' if e(sample)
   loc mdv: display %9.2f `r(mean)'
@@ -555,5 +563,5 @@ foreach yv of varlist startHH_1day lnfreq_tnvall lnfreq_tnvsn lnfreq_nvsn_wk1 tf
   test
   loc fstat: display %9.2f `r(F)'
 
-  `out' ctitle(`l_`yv'') keep(ami hf pn tm pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn ami_tm hf_tm pn_tm pnltprs_c_X_ami_X_tm pnltprs_c_X_hf_X_tm pnltprs_c_X_pn_X_tm) addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
+  `out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv', Office FE, Y, Fiscal Year FE, Y, Home health week FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
 }
