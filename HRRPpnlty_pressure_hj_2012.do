@@ -14,10 +14,11 @@ use referralhosp_mcrID, clear
 gen fy = .
 forval y=2012/2016 {
   loc yl1 = `y'-1
-  replace fy = `y' if socdate >= mdy(10,1,`yl1') & socdate <= mdy(9,30,`y')
+  replace fy = `y' if socdate >= mdy(7,1,`yl1') & socdate <= mdy(6,30,`y')
 }
 assert fy!=.
 
+loc tunit fy
 gen i = 1
 collapse (sum) ref_hj = i, by(prvdr_num offid_nu `tunit')
 
@@ -81,7 +82,7 @@ keep offid_nu socdate
 gen fy = .
 forval y=2012/2016 {
   loc yl1 = `y'-1
-  replace fy = `y' if socdate >= mdy(10,1,`yl1') & socdate <= mdy(9,30,`y')
+  replace fy = `y' if socdate >= mdy(7,1,`yl1') & socdate <= mdy(6,30,`y')
 }
 assert fy!=.
 
@@ -115,7 +116,9 @@ duplicates drop
 *rename fyear fy
 destring prvdr_num, replace
 
-drop if totpenalty2012==.
+foreach v of varlist *penalty* {
+  replace `v' = 0 if `v'==.
+}
 
 tempfile hrrp_penalty
 save `hrrp_penalty'
@@ -169,10 +172,18 @@ gen pnltprs13 = shref_hj * penalty13
 egen z_pnltprs13 = std(pnltprs13)
 sum z_pnltprs13, de
 
+*create 2012 penalty rate for [AMI & HF] X share of office's volume from the hospital
+gen penalty2012_heart = penalty2012_ami + penalty2012_hf
+gen pnltprs_heart = penalty2012_heart * shref_hj
+
 compress
 save HRRPpnlty_pressure_hj_2012, replace
 
+
+
+
 *--------------
+
 *plot the penalty for 2012 vs actual penalty for 2013
 use hrrp_penalty, clear
 keep if fy==2013

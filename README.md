@@ -43,11 +43,29 @@ The codes below are in chronological order.
 `HHeffort3.do`
 - Run regression analysis using the patient-week level data to compare HH efforts by (whether patient was before or after 30 days from hospital discharge), penalty pressure, or HRRP or non-HRRP condition
 
-`HHeffort4.do`
-- Compare HH efforts, readmissions (Reduced form model) by penalty pressure & HRRP or non-HRRP condition & TA vs MA patients
-
 `HHeffort5.do`
 - Compare HH efforts, readmissions (Reduced form model) by penalty pressure & TA vs MA patients (don't differentiate by penalty vs non-penalty condition and use the overall penalty pressure)
 
 `crresource_index.do`
 - create a measure of resources spent on each patient--i.e. a summary index of care intensity based on spending
+
+`HHeffort4.do`
+- Compare HH efforts, readmissions (Reduced form model) by penalty pressure & HRRP or non-HRRP condition & TA vs MA patients
+
+`crepi_lvl_rehosp_smpl.do`
+- create episode-level data starting for fy 2013-2015 where fy is a year ending June
+
+`desc_stats.do`
+- Run descriptive stats
+
+
+
+
+*---------------------
+## absolutely needed files
+`anchng_chars_pat2HH.do`
+`crresource_index.do`
+`crepilvl_rehosp_smpl.do`
+`anHHeffort_readmit.do`
+`desc_stats.do`
+`crepilvl_rehosp_smpl2012.do`

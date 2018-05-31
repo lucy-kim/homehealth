@@ -1,3 +1,5 @@
+*to interpret the magnitude of our estimates, want to compare the effort levels on the healthiest and sickest people at baseline (2012); get 2012 effort values
+
 * create episode-level data starting for fy 2013-2015 where fy is a year ending June
 
 loc path /home/hcmg/kunhee/Labor/Bayada_data
@@ -44,7 +46,7 @@ forval y=2012/2016 {
   replace fy = `y' if socdate >= mdy(7,1,`yl1') & socdate <= mdy(6,30,`y')
 }
 assert fy!=.
-drop if fy==2012
+keep if fy==2012
 
 *create data unique at the admission ID-office ID level
 keep admissionclie offid_nu ami hf pneu copd provider_hosp fy
@@ -81,6 +83,7 @@ drop if offid_nu ==.
 
 *drop episodes that had a visit on the day of readmission
 sort epiid visitdate
+
 gen hadvisit_onra = firsthospdate == visitdate & hashosp==1
 bys epiid: egen max = max(hadvisit_onra)
 drop if max==1
@@ -120,25 +123,107 @@ drop i
 
 duplicates drop
 
-compress
-save HHeffort_visit_old, replace
+tempfile HHeffort_visit
+save `HHeffort_visit'
+
+*-----------------------------
+*get resource index using 2012 data
+use payrate, clear
+collapse (mean) payrate, by(payrollno monday)
+
+sort payrollno monday
+bys payrollno: replace payrate=payrate[_n-1] if payrate >=.
+
+gsort payrollno -monday
+bys payrollno: replace payrate=payrate[_n-1] if payrate >=.
+
+bys payrollno: egen x = mean(payrate)
+drop if x==.
+drop x
+
+*since the pay rate is only available from 11/26/2012, just use the last value for each worker & just get one value per worker
+sort payrollno monday
+drop if payrate==1
+bys payrollno: keep if _n==1
+drop monday
+duplicates drop
+
+tempfile payrate
+save `payrate'
+
+use `HHeffort_visit', clear
+
+keep epiid visitdate payrollno monday visit_tot_cost visit_travel_cost status jobcode offid_nu
+duplicates drop
+
+merge m:1 payrollno using `payrate', keep(1 3)
+*since the pay rate is only available from 11/26/2012, just use the last value for each worker
+
+gsort payrollno -monday -payrate
+bys payrollno: replace payrate = payrate[_n-1] if payrate >=.
+
+tempfile tmp
+save `tmp'
+
+use `tmp', clear
+
+*get average value of cost for each pay discipline
+gen paydisc = jobcode
+replace paydisc = "OT" if jobcode=="OTA"
+replace paydisc = "PT" if jobcode=="PTA"
+replace paydisc = "RN" if jobcode=="SN"
+tab paydisc
+
+bys offid_nu monday paydisc: egen mean = mean(payrate)
+bys offid_nu paydisc: egen mean2 = mean(payrate)
+bys paydisc: egen mean3 = mean(payrate)
+assert mean3!=.
+replace mean = mean2 if mean ==.
+replace mean = mean3 if mean ==.
+replace payrate = mean if payrate ==.
+assert payrate != .
+
+drop mean* status _m
+
+*for each patient, get total cost using only 1) visit total costs; or 2) visit total costs + visit travel costs; or 3) visit total costs + visit travel costs + pays
+sort epiid visitdate
+
+gen double vtc_tr = visit_travel_ + visit_tot_cost
+
+*subtract transportation pays to workers to avoid double counting
+gen double vtc_tr_pay = vtc_tr + payrate
+
+sum visit_tot_cost vtc_tr vtc_tr_pay
+gen diff1 = vtc_tr-visit_tot_cost
+gen diff2 = vtc_tr_pay-vtc_tr
+assert diff1 >=0 & diff2>=0
+
+*get episode-visit level total costs across pay disciplines
+sort epiid visitdate
+
+replace paydisc = "SN" if paydisc=="RN" | paydisc=="LPN"
+collapse (sum) vtc_tr_pay, by(epiid visitdate paydisc)
+rename paydisc discipline
+
+tempfile resource_index
+save `resource_index'
 
 *-----------------------------
 *construct effort measures using the visit-level data
-use HHeffort_visit_old, clear
+use `HHeffort_visit', clear
 
 assert discipline!=""
 
-*instead of dropping, recode to missing if visit length < p1 or > p99
+*drop outliers in terms of visit length < p1 or > p99
 drop if lov==0
 replace lov = lov *60
-sum lov, de
+sum lov , de
 loc p1 = `r(p1)'
 loc p99 = `r(p99)'
-gen x = lov < `p1' | lov > `p99'
-bys epiid: egen outlierLOV = max(x)
-drop if outlierLOV==1
-drop x outlierLOV
+gen bad = lov < `p1' | lov > `p99'
+bys epiid: egen mbad = max(bad)
+drop if mbad==1
+drop mbad bad
 
 *drop visits if visittime is missing
 drop if visittime==.
@@ -148,7 +233,7 @@ tab dup
 drop dup
 
 *merge with summary index of costs
-merge m:1 epiid visitdate discipline using resource_index, keep(1 3) nogen
+merge m:1 epiid visitdate discipline using `resource_index', keep(1 3) nogen
 
 *total # visits during episode , visit length
 gen tnv = 1
@@ -175,7 +260,7 @@ restore
 
 *--------------------------
 *restrict to episodes without a visit on the day of readmission, who had a hospital stay before HH, who didn't have AIDS or blooad anemia, < age 65
-use HHeffort_visit_old, clear
+use `HHeffort_visit', clear
 
 keep if facility=="Hosp"
 
@@ -271,7 +356,6 @@ foreach d in "ami" "hf" "pn" {
   loc i = `i'+1
   replace pnltprs_c = pnltprs_`d' if `d'==1
 }
-
 replace pnltprs_c = 0 if hrrpcond==0
 assert pnltprs_c!=.
 
@@ -281,22 +365,17 @@ drop if vtc_tr_pay==0
 egen hrrpcond_count = rowtotal(ami hf pn)
 tab hrrpcond_count
 drop if hrrpcond_count > 1
+drop hrrpcond_count
+
 
 tempfile an2
 save `an2'
-
-*-----------
-gen pp = pnltprs_c > 0
-assert pp!=.
-tab pp, summarize(pnltprs_c)
-tab hrrpcond pp
-
 
 *get total number of episodes going on, # active workers in the office on each day
 use epi_visit, clear
 keep offid_nu visitdate epiid payrollno
 duplicates drop
-keep if visitdate <= mdy(7,1,2015)
+keep if visitdate <= mdy(7,1,2012)
 
 preserve
 drop payrollno
@@ -305,7 +384,6 @@ assert epiid!=.
 gen allepi = 1
 collapse (sum) allepi, by(offid_nu visitdate)
 *subtract 1 to not count the episode that starts on that day
-replace allepi = allepi - 1
 gen lnallepi = ln(allepi)
 tempfile allepi
 save `allepi'
@@ -324,12 +402,13 @@ restore
 
 *get characteristics of the referring hospital
 use hosp_chars_cr, clear
-keep if fy >=2013 & fy <= 2015
+keep if fy ==2012
 keep provid fy vi_hha teaching urban own_* size beds
 rename provid prvdr_num
 duplicates drop
 tempfile hospchars
 save `hospchars'
+
 
 use `an2', clear
 merge m:1 prvdr_num fy using `hospchars', keep(3) nogen
@@ -338,21 +417,58 @@ rename socdate visitdate_e
 merge m:1 offid_nu visitdate_e using `allepi', keep(1 3) nogen
 merge m:1 offid_nu visitdate_e using `nw_active_worker', keep(1 3) nogen
 
+
+compress
+save epilvl_rehosp_smpl2012, replace
+
+*-----------------------------------
+*to interpret the magnitude of our estimates, want to compare the effort levels on the healthiest and sickest people at baseline (2012); get 2012 effort values
+
+use epilvl_rehosp_smpl2012, clear
+
+*get the sickest & healthiest by looking at the quintile of the sum of risk of hospital categories at baseline
+capture drop riskhosp
+egen riskhosp = rowtotal(riskhosp_* hrfactor_* priorcond_*)
+tab riskhosp
+
+sum riskhosp, de
+loc p25 = `r(p25)'
+loc p75 = `r(p75)'
+gen sickest = riskhosp >= `p75'
+gen healthiest = riskhosp <= `p25'
+
+keep if sickest==1 | healthiest==1
+
 foreach v of varlist vtc_tr_pay* epilength* lov* {
   gen ln`v' = ln(`v'+1)
 }
-loc uami "AMI"
-loc uhf "HF"
-loc upn "PN"
-foreach d in "ami" "hf" "pn" {
-  capture drop pnltprs_c_X_`d'
-  gen pnltprs_c_X_`d' = pnltprs_c *`d'
-  gen pnltprs_X_`d' = pnltprs * `d'
 
-  lab var pnltprs_c_X_`d' "Condition-specific penalty salience X `u`d''"
-  lab var `d' "Indicator for `u`d''"
-  lab var pnltprs_X_`d' "Aggregate penalty salience X `u`d''"
+loc out1 epilength lov lovsn freq_tnv freq_tnvsn startHH_1day vtc_tr_pay hashosp30
+loc out2 epilength_1stwk1 lov_1stwk1 lovsn_1stwk1 freq_tnv_1stwk1 freq_tnvsn_1stwk1 vtc_tr_pay_1stwk1
+loc out3 epilength_1stwk0 lov_1stwk0 lovsn_1stwk0 freq_tnv_1stwk0 freq_tnvsn_1stwk0 vtc_tr_pay_1stwk0
+
+loc l_epilength "Episode length (days)"
+loc l_lov "Visit length (min)"
+loc l_lovsn "Nurse visit length (min)"
+loc l_freq_tnv "Frequency of visits"
+loc l_freq_tnvsn "Frequency of nurse visits"
+loc l_startHH_1day "Start HH within 1 day from discharge"
+loc l_vtc_tr_pay "Total cost index ($)"
+loc l_hashosp30 "P(Readmission) in 30 days"
+
+foreach v of varlist `out1' {
+  loc l_`v'_1stwk1 "`l_`v''"
+  loc l_`v'_1stwk0 "`l_`v''"
 }
 
-compress
-save epilvl_rehosp_smpl_old, replace
+forval x=1/3 {
+  foreach v of varlist `out`x'' {
+    lab var `v' "`l_`v''"
+  }
+}
+
+preserve
+keep `out1' `out2' `out3' sickest
+order  `out1' `out2' `out3' sickest
+bys sickest: outreg2 using `reg'/effort_compare.xls, replace sum(log) eqkeep(N mean) label
+restore

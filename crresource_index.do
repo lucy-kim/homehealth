@@ -7,7 +7,7 @@ loc reg /home/hcmg/kunhee/Labor/regresults
 
 cd `path'
 
-*aggregate the visit-level data to weekly # visits data for each worker-office-worker-week
+/* *aggregate the visit-level data to weekly # visits data for each worker-office-worker-week
 use epi_visit, clear
 
 *for visit discipline, jobcode is more detailed (distinguishing LPN from RN) but have to map OTA and PTA to OT & PT, respectively
@@ -29,7 +29,7 @@ compress
 save weekly_nv, replace
 
 tempfile weekly_nv
-save `weekly_nv'
+save `weekly_nv' */
 
 *----------------------------------------
 /* *get weekly pay for each worker
@@ -101,6 +101,8 @@ bys payrollno: replace payrate = payrate[_n-1] if payrate >=.
 tempfile tmp
 save `tmp'
 
+use `tmp', clear
+
 *get average value of cost for each pay discipline
 gen paydisc = jobcode
 replace paydisc = "OT" if jobcode=="OTA"
@@ -132,17 +134,12 @@ gen diff1 = vtc_tr-visit_tot_cost
 gen diff2 = vtc_tr_pay-vtc_tr
 assert diff1 >=0 & diff2>=0
 
-collapse (sum) vtc = visit_tot_cost vtc_tr vtc_tr_pay, by(epiid paydisc)
+*get episode-visit level total costs across pay disciplines
+sort epiid visitdate
 
-foreach v of varlist vtc vtc_tr vtc_tr_pay {
-  bys epiid: egen epilvl_`v' = sum(`v')
-}
-
-drop if paydisc==""
-reshape wide vtc vtc_tr vtc_tr_pay, i(epiid epilvl*) j(paydisc) str
-
-assert epilvl_vtc <= epilvl_vtc_tr
-assert epilvl_vtc_tr <= epilvl_vtc_tr_pay
+replace paydisc = "SN" if paydisc=="RN" | paydisc=="LPN"
+collapse (sum) vtc_tr_pay, by(epiid visitdate paydisc)
+rename paydisc discipline
 
 compress
 save resource_index, replace

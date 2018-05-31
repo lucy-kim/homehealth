@@ -7,35 +7,7 @@ loc reg /home/hcmg/kunhee/Labor/regresults
 
 cd `path'
 
-*identify patients who have unplanned readmissions & one of the specialty cohorts defined by Horwitz 2014 (see supplements in doi:10.7326/M13-3000)
-*use the inpatient diagnosis code file that contains CCS category, and identify the unique CCS category for
-use inpat_dx, clear
 
-*exclude Diagnosis Categories that are Always Planned regardless of Procedure (Table PR2 in Horwitz 2014 Appendix)
-destring ccs, replace
-drop if ccs==45 | ccs==194 | ccs==196 | ccs==254
-
-*specialty cohorts
-gen cardioresp = ccs==103 | ccs==108 | ccs==122 | ccs==125 | ccs==127 | ccs==128 | ccs==131
-
-gen cardiovas = ccs==96 | ccs==97 | (ccs >= 100 & ccs <= 102) | (ccs >= 104 & ccs <= 107) | (ccs >= 114 & ccs <= 117) | ccs==213
-
-gen neuro = (ccs >= 78 & ccs <= 83) | ccs==85 | ccs==95 | (ccs>=109 & ccs <= 113) | ccs==216 | ccs==227 | ccs==233
-
-gen medicine = (ccs >= 1 & ccs <= 10) | (ccs >= 46 & ccs <= 64) | (ccs >= 76 & ccs <= 77) | ccs==84 | (ccs >= 86 & ccs <= 94) | (ccs >= 98 & ccs <= 99) | (ccs >= 118 & ccs <= 121) | (ccs >= 123 & ccs <= 124) | ccs==126 | ccs==129 | ccs==130 | (ccs >= 132 & ccs <= 149) | (ccs >= 151 & ccs <= 173) | ccs==175 | (ccs >= 197 & ccs <= 212) | (ccs >= 214 & ccs <= 215) | ccs==217 | (ccs >= 225 & ccs <= 226) | (ccs >= 228 & ccs <= 232) | (ccs >= 234 & ccs <= 253) | (ccs >= 255 & ccs <= 259) | ccs==653 | (ccs >= 660 & ccs <= 663)
-
-*multiple CCS categories per admission
-/* sort clientid socdate ccs
-bys clientid socdate ccs: gen i = _n==1
-bys clientid socdate: egen si = sum(i)
-tab si */
-
-collapse (max) cardioresp cardiovas neuro medicine , by(clientid socdate)
-
-tempfile nontarget
-save `nontarget'
-
-*---------------------------------
 use HHeffort_week, clear
 capture rename pneu pn
 
@@ -62,17 +34,21 @@ tab hospoccur
 drop lwk
 *list epiid wkidx hashosp hospoccur in 1/50
 
-*drop if patients have more than one of HRRP conditions
-egen x = rowtotal(ami hf pn)
-drop if x > 1
-drop x
-
 *drop copd patients
 drop if copd==1
 
+*re-merge with penalty data
+drop pnltprs*
+merge m:1 offid_nu prvdr_num using HRRPpnlty_pressure_hj_2012, keepusing(*penalty2012* pnltprs* penalty13 pnltprs13 shref_hj) keep(1 3) nogen
+
+tempfile tmp
+save `tmp'
+
 *reshape long so that we have condition-patient-week level data by just dissecting and appending sample of patients for each HRRP condition & non-target condition
+use `tmp', clear
 count
 
+*penalty pressure in 2012 for each condition
 gen cond = 4
 gen pnltprs_c = .
 loc i = 1
@@ -82,10 +58,50 @@ foreach d in "ami" "hf" "pn" {
   replace pnltprs_c = pnltprs_`d' if `d'==1
 }
 replace pnltprs_c = 0 if hrrpcond==0
+assert pnltprs_c!=.
+
+*lump AMI & HF into one condition & create penalty pressure
+gen heart = ami==1 | hf==1
+lab var heart "Indicator for heart disease"
+
+gen pnltprs_c2 = pnltprs_heart if heart==1
+replace pnltprs_c2 = pnltprs_pn if pn==1
+replace pnltprs_c2 = 0 if hrrpcond==0
+assert pnltprs_c2!=.
+
+*if patients have more than one of HRRP conditions, assign the greater condition-specific penalty pressure
+egen x = rowtotal(ami hf pn)
+tab x
+count if x > 1
+/* drop if x > 1
+drop x */
+egen maxpnltprs = rowmax(pnltprs_ami pnltprs_hf pnltprs_pn)
+egen maxpp_ah = rowmax(pnltprs_ami pnltprs_hf)
+egen maxpp_ap = rowmax(pnltprs_ami pnltprs_pn)
+egen maxpp_hp = rowmax(pnltprs_hf pnltprs_pn)
+replace pnltprs_c = maxpnltprs if x==3
+replace pnltprs_c = maxpp_ah if ami==1 & hf==1 & x==2
+replace pnltprs_c = maxpp_ap if ami==1 & pn==1 & x==2
+replace pnltprs_c = maxpp_hp if pn==1 & hf==1 & x==2
+
+replace pnltprs_c2 = maxpnltprs if x >=2 & pn==1
+
+drop maxpp* maxpnltprs
+rename x hrrpcond_count
 
 count if cond < 4
 lab define ll 1 "AMI" 2 "HF" 3 "PN" 4 "Non-target"
 lab val cond ll
+
+*penalty rate
+capture drop pr_c
+gen pr_c = .
+foreach d in "ami" "hf" "pn" {
+  replace pr_c = penalty2012_`d' if `d'==1
+}
+replace pr_c = 0 if hrrpcond==0
+lab var pr_c "Condition-specific penalty rate in 2012"
+assert pr_c!=.
 
 sort epiid wkidx
 
@@ -103,7 +119,24 @@ foreach d in "ami" "hf" "pn" {
 }
 lab var pnltprs_c "Condition-specific penalty pressure"
 
-*estimate triple DDD: penalty pressure X HRRP condition X MA patients
+*create interaction of condition-specific penatly rate with target condition dummies
+foreach d in "ami" "hf" "pn" {
+  capture drop pr_c_X_`d'
+  gen pr_c_X_`d' = pr_c *`d'
+
+  lab var pr_c_X_`d' "Condition-specific penalty rate in 2012 X `u`d''"
+  lab var `d' "Indicator for `u`d''"
+}
+
+
+gen pnltprs_c2_X_heart = pnltprs_c2 * heart
+gen pnltprs_c2_X_pn = pnltprs_c2 * pn
+lab var pnltprs_c2 "Condition-specific penalty pressure"
+lab var pnltprs_c2_X_heart "Condition-specific penalty pressure X Heart condition"
+lab var pnltprs_c2_X_pn "Condition-specific penalty pressure X PN"
+
+
+/* *estimate triple DDD: penalty pressure X HRRP condition X MA patients
 foreach d in "ami" "hf" "pn" {
   capture drop pnltprs_c_X_`d'_X_tm
   gen pnltprs_c_X_`d'_X_tm = pnltprs_c *`d' * tm
@@ -116,10 +149,7 @@ foreach d in "ami" "hf" "pn" {
 }
 capture drop pnltprs_c_X_tm
 gen pnltprs_c_X_tm = pnltprs_c * tm
-lab var pnltprs_c_X_tm "Condition-specific penalty pressure X TM"
-
-* drop one episode
-drop if pnltprs_c==.
+lab var pnltprs_c_X_tm "Condition-specific penalty pressure X TM" */
 
 sort epiid wkidx
 
@@ -178,8 +208,8 @@ restore
 
 merge m:1 epiid using `epi_keep', keep(3) nogen */
 
-tempfile tmp
-save `tmp'
+tempfile tmp2
+save `tmp2'
 
 *get frequency of visits
 
@@ -275,14 +305,15 @@ foreach v of varlist freq* tho mvl* tnv* tho {
 /* *drop outliers:
 sum mvl* nv* , de
 foreach v of varlist mvl* nv* freq* {
+  des `v'
   qui sum `v', de
-  replace `v' = . if `v' > `r(p99)'
+  tab hf if `v' > `r(p99)', summarize(pnltprs_c)
 } */
-
+/*
 *estimate DiD: penalty pressure X MA patients
 capture drop pnltprs_X_tm
 gen pnltprs_X_tm = pnltprs * tm
-lab var pnltprs_X_tm "Overall penalty pressure X TM"
+lab var pnltprs_X_tm "Overall penalty pressure X TM" */
 
 
 lab var lnmvl "Log Mean visit length"
@@ -298,14 +329,14 @@ lab var tfnv "Fraction of full-time nurse visits"
 lab var startHH_1day "Starting home health within one day from hospital discharge"
 
 
-*replace the 2012 hypothetical penalty rate with 2013 penalty rate & reconstruct the penalty pressure
+/* *replace the 2012 hypothetical penalty rate with 2013 penalty rate & reconstruct the penalty pressure
 merge m:1 offid_nu prvdr_num using HRRPpnlty_pressure_hj_2012, keepusing(pnltprs13 z_pnltprs13) keep(1 3) nogen
 
 *estimate DiD: 2013 penalty pressure X MA patients
 capture drop pnltprs13_X_tm
 gen pnltprs13_X_tm = pnltprs13 * tm
 lab var pnltprs13_X_tm "Overall penalty pressure in 2013 X TM"
-lab var pnltprs13 "Overall penalty pressure in 2013"
+lab var pnltprs13 "Overall penalty pressure in 2013" */
 
 *add the summary resource spending measure for each episode
 capture drop epilvl_vtc-vtc_tr_payST
@@ -341,6 +372,7 @@ lab var lnmvl_wk1 "Ln Mean visit length in the first week"
 lab var lnmvlsn_wk1 "Ln Mean nurse visit length in the first week"
 lab var lnmvl "Ln Mean visit length"
 lab var lnmvlsn "Ln Mean nurse visit length"
+
 
 compress
 save HHeffort4, replace
@@ -386,33 +418,147 @@ loc sp3 `sp2' `comorbid' i.fy
 * leave only one obs per episode
 loc outcome lepilvl_vtc_tr lepilvl_vtc_tr_pay lnmvl* lnmvlsn* lntnvall lntnvsn lnfreq_tnvall lnfreq_tnvsn lnfreq_nvall_wk1 lnfreq_nvsn_wk1 tfho tfnv startHH_1day epidur
 
+
 use HHeffort4, clear
 
-/* *drop MA patients
-drop if ma==1 */
+*create episode level 30-day hospital readmission indicator
+gen x = hospoccur* hashosp30
+bys epiid: egen hospoccur30 = max(x)
+lab var hospoccur30 "30-day hospital readmission indicator"
+loc l_hospoccur30 "30-day hospital readmission indicator"
 
-keep epiid tm z_pnltprs* `sp1' age5yr female white noassist livealone dual `comorbid' offid_nu fy `outcome' hashosp hrrpcond lepilvl* ami hf pn pnltprs pnltprs13 pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn pnltprs_c
+keep epiid tm z_pnltprs* `sp1' age5yr female white noassist livealone dual `comorbid' offid_nu fy `outcome' hashosp hrrpcond lepilvl* ami hf pn pnltprs pnltprs13 pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn pnltprs_c prvdr_num heart pr_c* pnltprs_c2* hrrpcond_count cond shref_hj hospoccur30
 
 duplicates drop
 duplicates tag epiid, gen(dup)
 assert dup==0
 drop dup
 
-tempfile epilvl
-save `epilvl'
+compress
+save HHeffort_epilvl, replace
 
 *------------------------------------
 * use difference in penalty pressure between target and non-target conditions
 *------------------------------------
-*non-readmitted pats
 
-use `epilvl', clear
+
+use HHeffort_epilvl, clear
+
+tab cond if tm==1
+table cond if tm==1, contents(mean pnltprs_c mean pr_c mean shref_hj)
+tab cond if tm==1 & hrrpcond_count < 2
+table cond if tm==1 & hrrpcond_count < 2, contents(mean pnltprs_c mean pr_c mean shref_hj)
 
 loc sp3 `sp2' `comorbid' i.fy
 loc outcome epidur lnmvl lnmvlsn lnmvl_wk1 lnmvlsn_wk1 lnfreq_tnvall lnfreq_tnvsn lnfreq_nvall_wk1 lnfreq_nvsn_wk1 lepilvl_vtc_tr_pay tfho tfnv startHH_1day
 *lepilvl_vtc_tr lntnvall lntnvsn
-loc pp ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn
 
+*all patients
+loc pp1 ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn
+loc pp2 ami hf pn pr_c_X_ami pr_c_X_hf pr_c_X_pn
+loc pp3 heart pn pnltprs_c2_X_heart pnltprs_c2_X_pn
+
+loc pv1 pnltprs_c
+loc pv2 pr_c
+loc pv3 pnltprs_heart
+
+forval x=1/3 {
+  loc file HHeffort4_allpat`x'
+  capture erase `reg'/`file'.xls
+  capture erase `reg'/`file'.txt
+  capture erase `reg'/`file'.tex
+  loc out "outreg2 using `reg'/`file'.xls, tex dec(3) label append nocons"
+
+  if `x'!=3 {
+    foreach d in "ami" "hf" "pn" {
+      sum `pv`x'' if `d'==1
+      loc pp_sd_`d' : di %9.3f `r(sd)'
+    }
+  }
+  if `x'==3 {
+    sum pnltprs_c2 if heart==1
+    loc pp_sd_heart : di %9.3f `r(sd)'
+    sum pnltprs_c2 if pn==1
+    loc pp_sd_pn : di %9.3f `r(sd)'
+  }
+
+  foreach yv of varlist `outcome' {
+    areg `yv' `pp`x'' `sp3' if tm==1 & hrrpcond_count < 2, absorb(offid_nu) vce(cluster offid_nu)
+    *if hashosp==0
+    sum `yv' if e(sample)
+    loc mdv: display %9.2f `r(mean)'
+    loc ar2: display %9.2f `e(r2_a)'
+
+    qui test
+    loc fstat: display %9.2f `r(F)'
+
+    `out' ctitle(`l_`yv'') keep(`pp`x'') addtext(F statistic, `fstat', Mean dep. var., `mdv', SD of AMI penalty pressure, `pp_sd_ami', SD of HF penalty pressure, `pp_sd_hf', SD of heart condition penalty pressure, `pp_sd_heart', SD of PN penalty pressure, `pp_sd_pn', Office FE, Y, Fiscal Year FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
+  }
+}
+
+
+*for readmission outcome at the episode level
+gen hospoccur30 = hospoccur* hashosp30
+lab var hospoccur30 "30-day hospital readmission indicator"
+loc l_hospoccur30 "30-day hospital readmission indicator"
+
+foreach d in "ami" "hf" "pn" {
+  gen pnltprs_X_`d' = pnltprs * `d'
+}
+lab var pnltprs "Overall penalty pressure in 2012"
+lab var pnltprs_X_ami "Penalty pressure X AMI"
+lab var pnltprs_X_hf "Penalty pressure X HF"
+lab var pnltprs_X_pn "Penalty pressure X PN"
+
+foreach d in "ami" "hf" "pn" {
+  gen pnltprs13_X_`d' = pnltprs13 * `d'
+}
+lab var pnltprs13_X_ami "Penalty pressure X AMI"
+lab var pnltprs13_X_hf "Penalty pressure X HF"
+lab var pnltprs13_X_pn "Penalty pressure X PN"
+
+
+foreach d in "ami" "hf" "pn" {
+  sum pnltprs_c if `d'==1
+  loc pp_sd_`d' : di %9.3f `r(sd)'
+}
+
+sum pnltprs
+loc pp_sd2 : di %9.3f `r(sd)'
+sum pnltprs13
+loc pp_sd3 : di %9.3f `r(sd)'
+
+loc pp1 ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn
+loc pp2 ami hf pn pnltprs pnltprs_X_ami pnltprs_X_hf pnltprs_X_pn
+loc pp3 ami hf pn pnltprs13 pnltprs13_X_ami pnltprs13_X_hf pnltprs13_X_pn
+
+loc file HHeffort4_read
+capture erase `reg'/`file'.xls
+capture erase `reg'/`file'.txt
+capture erase `reg'/`file'.tex
+loc out "outreg2 using `reg'/`file'.xls, tex dec(3) label append nocons"
+
+loc yv hospoccur30
+forval n=1/3 {
+  areg `yv' `pp`n'' `sp3' i.wkidx if tm==1, absorb(offid_nu) vce(cluster offid_nu)
+  *if hashosp==0
+  sum `yv' if e(sample)
+  loc mdv: display %9.2f `r(mean)'
+  loc ar2: display %9.2f `e(r2_a)'
+
+  qui test
+  loc fstat: display %9.2f `r(F)'
+
+  `out' ctitle(`l_`yv'') keep(`pp`n'') addtext(F statistic, `fstat', Mean dep. var., `mdv',SD of AMI penalty pressure, `pp_sd_ami', SD of HF penalty pressure, `pp_sd_hf', SD of PN penalty pressure, `pp_sd_pn', SD of penalty pressure, `pp_sd', Office FE, Y, Home health week FE, Y, Fiscal Year FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
+}
+
+
+
+*-------------------------
+
+
+
+*non-readmitted pats
 loc file HHeffort4_norapat
 capture erase `reg'/`file'.xls
 capture erase `reg'/`file'.txt
@@ -543,32 +689,7 @@ use `epilvl', clear
 
 loc sp3 `sp2' `comorbid' i.fy
 loc outcome epidur lnmvl lnmvlsn lnmvl_wk1 lnmvlsn_wk1 lnfreq_tnvall lnfreq_tnvsn lnfreq_nvall_wk1 lnfreq_nvsn_wk1 lepilvl_vtc_tr_pay tfho tfnv startHH_1day
-*lepilvl_vtc_tr lntnvall lntnvsn
-loc pp ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn
 
-loc file HHeffort4_allpat
-capture erase `reg'/`file'.xls
-capture erase `reg'/`file'.txt
-capture erase `reg'/`file'.tex
-loc out "outreg2 using `reg'/`file'.xls, tex dec(3) label append nocons"
-
-foreach d in "ami" "hf" "pn" {
-  sum pnltprs_c if `d'==1
-  loc pp_sd_`d' : di %9.3f `r(sd)'
-}
-
-foreach yv of varlist `outcome' {
-  areg `yv' `pp' `sp3' if tm==1, absorb(offid_nu) vce(cluster offid_nu)
-  *if hashosp==0
-  sum `yv' if e(sample)
-  loc mdv: display %9.2f `r(mean)'
-  loc ar2: display %9.2f `e(r2_a)'
-
-  qui test
-  loc fstat: display %9.2f `r(F)'
-
-  `out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv', SD of AMI penalty pressure, `pp_sd_ami', SD of HF penalty pressure, `pp_sd_hf', SD of PN penalty pressure, `pp_sd_pn', Office FE, Y, Fiscal Year FE, Y, Hospitalization risk controls, Y, Demographic controls, Y, Comorbidity controls, Y)
-}
 
 
 * use the interaction with aggregate 2012 penalty pressure, not the condition-specific ones

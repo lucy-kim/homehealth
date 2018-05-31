@@ -79,12 +79,18 @@ merge 1:m epiid using epi_visit, keep(1 3) nogen
 *all matched
 drop if offid_nu ==.
 
+list epiid visitdate hashos firsthospdate  hadvisit_onra if  epiid==550247
+
 *drop episodes that had a visit on the day of readmission
 sort epiid visitdate
 gen hadvisit_onra = firsthospdate == visitdate & hashosp==1
 bys epiid: egen max = max(hadvisit_onra)
-drop if max==1
-drop max hadvisit_onra
+bys epiid: gen i = _n==1
+tab max if i==1
+*5% episodes (26K) have visit on the day of readmission
+drop hadvisit_onra i
+rename max hadvisit_onra
+*drop if max==1
 
 * duration of episode: make sure we have single episode cases
 capture drop epilength
@@ -121,11 +127,11 @@ drop i
 duplicates drop
 
 compress
-save HHeffort_visit_old, replace
+save HHeffort_visit, replace
 
 *-----------------------------
 *construct effort measures using the visit-level data
-use HHeffort_visit_old, clear
+use HHeffort_visit, clear
 
 assert discipline!=""
 
@@ -135,6 +141,7 @@ replace lov = lov *60
 sum lov, de
 loc p1 = `r(p1)'
 loc p99 = `r(p99)'
+*replace lov = . if lov < `p1' | lov > `p99'
 gen x = lov < `p1' | lov > `p99'
 bys epiid: egen outlierLOV = max(x)
 drop if outlierLOV==1
@@ -175,7 +182,7 @@ restore
 
 *--------------------------
 *restrict to episodes without a visit on the day of readmission, who had a hospital stay before HH, who didn't have AIDS or blooad anemia, < age 65
-use HHeffort_visit_old, clear
+use HHeffort_visit, clear
 
 keep if facility=="Hosp"
 
@@ -183,13 +190,6 @@ keep if facility=="Hosp"
 drop if ynel16==1 | ynel25==1
 
 drop if age < 65
-
-*drop episodes that had a visit on the day of readmission
-sort epiid visitdate
-gen hadvisit_onra = firsthospdate == visitdate & hashosp==1
-bys epiid: egen max = max(hadvisit_onra)
-drop if max==1
-drop max hadvisit_onra
 
 *5-year age bins
 egen age5yr = cut(age), at(65,70,75,80,85,90,95)
@@ -214,7 +214,7 @@ loc demog `ages' female white noassist livealone `ins'
 loc comorbid ynch* `overallst' `hrfactor' `priorcond'
 
 loc chars `comorbid' `riskhosp' `demog'
-loc vars epiid provider_hosp socdate2 offid_nu clientid fy inpat_dcd ami hf pneu copd hashosp* days2hosp age
+loc vars epiid provider_hosp socdate2 offid_nu clientid fy inpat_dcd ami hf pneu copd hashosp* days2hosp age hadvisit_onra
 keep `chars' `vars'
 duplicates drop
 
@@ -228,6 +228,9 @@ drop if time2hh < 0 | time2hh > 30
 tab time2hh
 *all the episodes started HH within 14 days from hospital discharge
 gen startHH_1day = time2hh <=1 if time2hh!=.
+
+tab hashosp
+tab hashosp30
 
 *merge with efforts data at the episode level
 merge 1:1 epiid using `effort1', keep(3) nogen
@@ -249,8 +252,8 @@ foreach v of varlist tnv_1stwk1 tnvsn_1stwk1 {
   gen freq_`v' = `v'/epilength_1stwk1
 }
 
-*drop if patient had 0 nurse visits during the episode
-drop if tnvsn==0
+*drop 1 patient who had 158 visits (the next largest value = 56)
+drop if tnvsn==158
 
 *merge by patient's referring hospital and office, the penalty pressure data
 rename provider_hosp prvdr_num
@@ -263,7 +266,7 @@ gen tm = 1-ma
 *penalty pressure in 2012 for each condition
 drop if copd==1
 
-gen cond = 3
+gen cond = 4
 gen pnltprs_c = .
 loc i = 1
 foreach d in "ami" "hf" "pn" {
@@ -271,9 +274,12 @@ foreach d in "ami" "hf" "pn" {
   loc i = `i'+1
   replace pnltprs_c = pnltprs_`d' if `d'==1
 }
-
 replace pnltprs_c = 0 if hrrpcond==0
 assert pnltprs_c!=.
+assert cond!=.
+assert cond==4 if hrrpcond==0
+lab define cl 1 "AMI" 2 "HF" 3 "PN" 4 "Non-target"
+lab val cond cl
 
 *drop episodes if the total summary cost ==0
 drop if vtc_tr_pay==0
@@ -281,16 +287,42 @@ drop if vtc_tr_pay==0
 egen hrrpcond_count = rowtotal(ami hf pn)
 tab hrrpcond_count
 drop if hrrpcond_count > 1
+drop hrrpcond_count
+
+foreach v of varlist vtc_tr_pay* epilength* lov* {
+  gen ln`v' = ln(`v'+1)
+}
+
+loc uami "AMI"
+loc uhf "HF"
+loc upn "PN"
+foreach d in "ami" "hf" "pn" {
+  capture drop pnltprs_c_X_`d'
+  gen pnltprs_c_X_`d' = pnltprs_c *`d'
+  gen pnltprs_X_`d' = pnltprs * `d'
+
+  lab var pnltprs_c_X_`d' "Condition-specific penalty salience X `u`d''"
+  lab var `d' "Indicator for `u`d''"
+  lab var pnltprs_X_`d' "Aggregate penalty salience X `u`d''"
+}
 
 tempfile an2
 save `an2'
 
 *-----------
+*penalty pressure defined to 0 for non-target conditions
 gen pp = pnltprs_c > 0
 assert pp!=.
 tab pp, summarize(pnltprs_c)
 tab hrrpcond pp
 
+drop pp
+gen pp = pnltprs > 0
+assert pp!=.
+tab pp, summarize(pnltprs)
+tab hrrpcond pp
+
+*-----------
 
 *get total number of episodes going on, # active workers in the office on each day
 use epi_visit, clear
@@ -338,21 +370,5 @@ rename socdate visitdate_e
 merge m:1 offid_nu visitdate_e using `allepi', keep(1 3) nogen
 merge m:1 offid_nu visitdate_e using `nw_active_worker', keep(1 3) nogen
 
-foreach v of varlist vtc_tr_pay* epilength* lov* {
-  gen ln`v' = ln(`v'+1)
-}
-loc uami "AMI"
-loc uhf "HF"
-loc upn "PN"
-foreach d in "ami" "hf" "pn" {
-  capture drop pnltprs_c_X_`d'
-  gen pnltprs_c_X_`d' = pnltprs_c *`d'
-  gen pnltprs_X_`d' = pnltprs * `d'
-
-  lab var pnltprs_c_X_`d' "Condition-specific penalty salience X `u`d''"
-  lab var `d' "Indicator for `u`d''"
-  lab var pnltprs_X_`d' "Aggregate penalty salience X `u`d''"
-}
-
 compress
-save epilvl_rehosp_smpl_old, replace
+save epilvl_rehosp_smpl, replace
