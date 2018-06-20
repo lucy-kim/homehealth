@@ -19,15 +19,87 @@ loc officechars lnallepi lnnw_active_w
 
 loc sp `riskhosp' `demog' `comorbid' i.fy `officechars' `hospchars'
 
-*---------------------------------
-*what are the top 5 conditions among non-target patients?
+*restrict to sample
+
 use epilvl_rehosp_smpl_old, clear
+
+keep if tm==1
+
+loc outcome lnepilength
+loc pp ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn
+areg `yv' `pp' `sp', absorb(offid_nu) vce(cluster offid_nu)
+keep if e(sample)
+
+tempfile insmpl
+save `insmpl'
+
+*---------------------------------
+*# referring hospitals
+
+use `insmpl', clear
+keep prvdr_num
+duplicates drop
+count
+*---------------------------------
+
+*what are the top 5 conditions among non-target patients?
+
 keep epiid hrrpcond
 duplicates drop
-merge 1:1 epiid using masterclientadmiss2, keep(1 3) nogen
+merge 1:1 epiid using masterclientadmiss2, keep(1 3) nogen keepusing(clientid socdate_e category)
 
+keep if hrrpcond==0
+/* bys category: gen freq = _N
+
+tab category  if freq >= 551, sort
+keep if freq >= 551 */
+
+merge 1:m clientid socdate_e using inpat_dx, keep(1 3) nogen
+
+*keep only the 3 digits before period
+split inpat_dx_cor, p(".")
+
+tempfile tmp
+save `tmp'
+
+keep inpat_dx_cor1 epiid category
+gen i = 1
+
+preserve
+collapse (sum) freq = i, by(inpat_dx_cor1)
+gsort inpat_dx_cor1
+egen tot = sum(freq)
+gen pct = 100*freq /tot
+gen x = sum(pct)
+rename x cumulative_pct
+outsheet using `reg'/inpat_dx_icd_ranking.csv, replace names comma
+restore
+
+preserve
+destring inpat_dx_cor1, replace
+gen badcontrol = inpat_dx_cor1 >=390 & inpat_dx_cor1<=519
+keep epiid badcontrol
+duplicates drop
+
+/*
+foreach l in "ENCOUNTERING" "SYMPTOMS" "RHEUMATISM" "CEREBROVASCULAR" "HEART" {
+  preserve
+  keep if regexm(category,"`l'")
+  keep inpat_dx_cor
+  gen i = 1
+  collapse (sum) freq = i, by(inpat_dx_cor)
+  gsort -freq
+  outsheet using `reg'/`l'.csv, replace cross
+  restore
+}
+
+bys epiid: gen ndiag = _N
+tab ndiag
+*80% episodes have 1-4 inpat diagnoses codes */
+
+*groupings by ICD-10 codes (see below for the top 5 categories). The first one is "Persons encountering health services in other circumstances".
 tab category if hrrpcond==0, sort
-/* PERSONS ENCOUNTERING HEALTH SERVICES .. |      5,524       37.39       37.39
+/* Persons encountering health services in other circumstances |      5,524       37.39       37.39
                                SYMPTOMS |      1,016        6.88       44.27
          RHEUMATISM, EXCLUDING THE BACK |        685        4.64       48.91
                 CEREBROVASCULAR DISEASE |        643        4.35       53.26

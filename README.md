@@ -49,11 +49,14 @@ The codes below are in chronological order.
 `crresource_index.do`
 - create a measure of resources spent on each patient--i.e. a summary index of care intensity based on spending
 
+`crepi_lvl_rehosp_smpl.do`
+- create episode-level data starting for fy 2013-2015 where fy is a year ending June
+
 `HHeffort4.do`
 - Compare HH efforts, readmissions (Reduced form model) by penalty pressure & HRRP or non-HRRP condition & TA vs MA patients
 
-`crepi_lvl_rehosp_smpl.do`
-- create episode-level data starting for fy 2013-2015 where fy is a year ending June
+`HHeffort6.do`
+- Remove cardiorespiratory conditions from the control group; run regs for P(Readmission) in the first week as outcome; and replace the 2012 penalty rate with the 2012 predicted probability of penalty
 
 `desc_stats.do`
 - Run descriptive stats
@@ -63,6 +66,10 @@ The codes below are in chronological order.
 
 *---------------------
 ## absolutely needed files
+`crCMShospdisch_tohh.do`
+  - use hospital-week level counts of Medicare hospital discharges to home health destinations for 2011-2014 (Source: Elena's CMS data)
+`crpred_pprob.do`
+`HRRPpnlty_pressure_hj_2012.do`
 `anchng_chars_pat2HH.do`
 `crresource_index.do`
 `crepilvl_rehosp_smpl.do`

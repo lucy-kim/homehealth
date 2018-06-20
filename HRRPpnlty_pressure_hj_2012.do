@@ -34,7 +34,8 @@ save `ref_hj'
 use `ref_hj', clear
 keep offid_nu prvdr_num
 duplicates drop
-*expand 2016 - 2012 + 1
+
+*restrict to 2012
 gen fy = 2012
 sort offid_nu prvdr_num
 merge 1:1 offid_nu prvdr_num fy using `ref_hj'
@@ -175,6 +176,53 @@ sum z_pnltprs13, de
 *create 2012 penalty rate for [AMI & HF] X share of office's volume from the hospital
 gen penalty2012_heart = penalty2012_ami + penalty2012_hf
 gen pnltprs_heart = penalty2012_heart * shref_hj
+
+tempfile tmp
+save `tmp'
+
+*--------------
+*add the share of the hospital’s patients that the HH provider contributes
+
+use CMShospdisch_tohh, clear
+keep if monday >= mdy(1,1,2012) & monday <= mdy(6,30,2012)
+rename provider_hosp prvdr_num
+gen x= real(prvdr)
+drop if x==.
+destring prvdr, replace
+collapse (sum) hdis2hh, by(prvdr_num)
+tempfile hdis2hh
+save `hdis2hh'
+
+*create an office-hospital level # hospitals' discharges to home health that went to Bayada during 2012
+use `ref_hj2', clear
+merge m:1 prvdr_num using `hdis2hh', keep(3) nogen
+
+gen sharetoBayada = ref_hj/hdis2hh
+*recode to 1 if the share exceeds 1
+replace sharetoBayada = 1 if sharetoBayada > 1
+
+tempfile sharetoBayada
+save `sharetoBayada'
+*--------------
+*add the predicted probability of penalty
+use `tmp', clear
+merge m:1 prvdr_num using pred_pprob, keep(3) nogen
+
+merge 1:1 prvdr_num offid_nu using `sharetoBayada', keep(3) nogen keepusing(sharetoBayada)
+
+foreach d in "ami" "hf" "pn" {
+  *penalty salience = 2012 predicted probability of penalty X office's referral share from each hospital
+  capture drop pnltprs_pred_`d'
+  gen pnltprs_pred_`d' = shref_hj * pnltprob_`d'
+
+  *penalty salience = 2012 predicted probability of penalty X office's referral share from each hospital X hospital's discharge share that went to Bayada
+  capture drop pnltprs_pred_hosp_`d'
+  gen pnltprs_pred_hosp_`d' = pnltprs_pred_`d' * sharetoBayada
+
+  *penalty salience = 2012 penalty rate X office's referral share from each hospital X hospital's discharge share that went to Bayada
+  capture drop pnltprs_hosp_`d'
+  gen pnltprs_hosp_`d' = pnltprs_`d' * sharetoBayada
+}
 
 compress
 save HRRPpnlty_pressure_hj_2012, replace

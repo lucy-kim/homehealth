@@ -426,6 +426,9 @@ save epilvl_rehosp_smpl2012, replace
 
 use epilvl_rehosp_smpl2012, clear
 
+*restrict to targeted patients
+keep if hrrpcond==1
+
 *get the sickest & healthiest by looking at the quintile of the sum of risk of hospital categories at baseline
 capture drop riskhosp
 egen riskhosp = rowtotal(riskhosp_* hrfactor_* priorcond_*)
@@ -446,6 +449,17 @@ foreach v of varlist vtc_tr_pay* epilength* lov* {
 loc out1 epilength lov lovsn freq_tnv freq_tnvsn startHH_1day vtc_tr_pay hashosp30
 loc out2 epilength_1stwk1 lov_1stwk1 lovsn_1stwk1 freq_tnv_1stwk1 freq_tnvsn_1stwk1 vtc_tr_pay_1stwk1
 loc out3 epilength_1stwk0 lov_1stwk0 lovsn_1stwk0 freq_tnv_1stwk0 freq_tnvsn_1stwk0 vtc_tr_pay_1stwk0
+
+loc patchars `riskhosp' age female white
+
+lab var age "Age"
+lab var female "Female"
+lab var white "White"
+lab var riskhosp_fall "Risk for hospitalization: History of 2+ falls"
+lab var riskhosp_manyhosp "Risk for hospitalization: 2+ hospitalizations"
+lab var riskhosp_mental "Risk for hospitalization: Recent decline in Mental"
+lab var riskhosp_ge5med "Risk for hospitalization: Take 5+ medications"
+lab var riskhosp_oth "Risk for hospitalization: Other"
 
 loc l_epilength "Episode length (days)"
 loc l_lov "Visit length (min)"
@@ -468,7 +482,7 @@ forval x=1/3 {
 }
 
 preserve
-keep `out1' `out2' `out3' sickest
-order  `out1' `out2' `out3' sickest
+keep `out1' `out2' `out3' `patchars' sickest
+order  `out1' `out2' `out3' `patchars' sickest
 bys sickest: outreg2 using `reg'/effort_compare.xls, replace sum(log) eqkeep(N mean) label
 restore
