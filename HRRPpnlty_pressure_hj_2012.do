@@ -198,11 +198,14 @@ use `ref_hj2', clear
 merge m:1 prvdr_num using `hdis2hh', keep(3) nogen
 
 gen sharetoBayada = ref_hj/hdis2hh
+count if sharetoBayada>1 & sharetoBayada!=.
+*25 office-hospital pair obs
 *recode to 1 if the share exceeds 1
-replace sharetoBayada = 1 if sharetoBayada > 1
+replace sharetoBayada = 1 if sharetoBayada > 1 & sharetoBayada!=.
 
 tempfile sharetoBayada
 save `sharetoBayada'
+
 *--------------
 *add the predicted probability of penalty
 use `tmp', clear

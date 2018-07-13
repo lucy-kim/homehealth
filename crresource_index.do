@@ -124,10 +124,21 @@ drop mean* status _m
 *for each patient, get total cost using only 1) visit total costs; or 2) visit total costs + visit travel costs; or 3) visit total costs + visit travel costs + pays
 sort epiid visitdate
 
-gen double vtc_tr = visit_travel_ + visit_tot_cost
+*recode costs to 0 if missing
+replace visit_travel_ = 0 if visit_travel_==.
+replace visit_tot_cost = 0 if visit_tot_cost==.
+recast double visit_travel_cost
+recast double visit_tot_cost
+recast double payrate
+
+set type double
+
+gen vtc_tr = visit_travel_ + visit_tot_cost
 
 *subtract transportation pays to workers to avoid double counting
-gen double vtc_tr_pay = vtc_tr + payrate
+gen vtc_tr_pay = vtc_tr + payrate
+
+assert vtc_tr_pay==visit_travel_cost+ visit_tot_cost+ payrate
 
 sum visit_tot_cost vtc_tr vtc_tr_pay
 gen diff1 = vtc_tr-visit_tot_cost
@@ -138,7 +149,7 @@ assert diff1 >=0 & diff2>=0
 sort epiid visitdate
 
 replace paydisc = "SN" if paydisc=="RN" | paydisc=="LPN"
-collapse (sum) vtc_tr_pay, by(epiid visitdate paydisc)
+collapse (sum) vtc_tr_pay visit_travel_cost visit_tot_cost payrate, by(epiid visitdate paydisc)
 rename paydisc discipline
 
 compress

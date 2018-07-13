@@ -21,11 +21,11 @@ loc sp `riskhosp' `demog' `comorbid' i.fy `officechars' `hospchars'
 
 *restrict to sample
 
-use epilvl_rehosp_smpl_old, clear
+use epilvl_rehosp_smpl_old2, clear
 
 keep if tm==1
 
-loc outcome lnepilength
+loc outcome lnlov
 loc pp ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn
 areg `yv' `pp' `sp', absorb(offid_nu) vce(cluster offid_nu)
 keep if e(sample)

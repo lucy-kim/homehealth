@@ -61,8 +61,11 @@ The codes below are in chronological order.
 `desc_stats.do`
 - Run descriptive stats
 
+`inpat_firstdx.do`
+*keep only the first recorded inpat diagnosis code per patient (reference: crinpat_dx.do)
 
-
+`crepilvl_rehosp_smpl_firstdx.do`
+- reconstruct episode level data after classifying the target and non-target (excl. cardiorespiratory from non-target) conditions using only the first inpat diagnosis code
 
 *---------------------
 ## absolutely needed files
@@ -74,5 +77,8 @@ The codes below are in chronological order.
 `crresource_index.do`
 `crepilvl_rehosp_smpl.do`
 `anHHeffort_readmit.do`
+`inpat_firstdx.do`
+`crepilvl_rehosp_smpl_firstdx.do`
+`anHHeffort_readmit_recode_targetcond.do`
 `desc_stats.do`
 `crepilvl_rehosp_smpl2012.do`

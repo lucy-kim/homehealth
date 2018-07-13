@@ -75,7 +75,7 @@ duplicates drop
 merge 1:1 epiid using `an', keep(2 3) nogen
 
 *use predicted penalty probabilityfor 2012 instead of 2012 penalty rate
-merge m:1 offid_nu prvdr_num using HRRPpnlty_pressure_hj_2012, keepusing(pnltprs_pred_hosp_* pnltprs_pred_* pnltprs_hosp_*) keep(1 3) nogen
+merge m:1 offid_nu prvdr_num using HRRPpnlty_pressure_hj_2012, keepusing(pnltprs_pred_hosp_* pnltprs_pred_* pnltprs_hosp_* sharetoBayada) keep(1 3) nogen
 
 loc uami "AMI"
 loc uhf "HF"
@@ -86,7 +86,7 @@ foreach d in "ami" "hf" "pn" {
   gen pnltprs_pred_hosp_c_X_`d' = pnltprs_pred_hosp_`d' *`d'
 
   replace pnltprs_pred_`d' = 0 if hrrpcond==0
-  capture drop pnltprs_pred_c_X_`d'
+  *capture drop pnltprs_pred_c_X_`d'
   gen pnltprs_pred_c_X_`d' = pnltprs_pred_`d' *`d'
 
   replace pnltprs_hosp_`d' = 0 if hrrpcond==0
@@ -128,16 +128,26 @@ forval x = 0/1 {
 *----------------------------------------------------------------------
 use `smpl_tm1', clear
 *throughout the entire episode
-loc outcome lnlov lnlov_1stwk1 lnlov_1stwk0 lnlovsn lnlovsn_1stwk1 lnlovsn_1stwk0 freq_tnv freq_tnv_1stwk1 freq_tnv_1stwk0 freq_tnvsn freq_tnvsn_1stwk1 freq_tnvsn_1stwk0 startHH_1day lnvtc_tr_pay lnvtc_tr_pay_1stwk1 lnvtc_tr_pay_1stwk0 hashosp30 hashosp30_1stwk1 hashosp30_1stwk0
+loc outcome lnlov lnlov_1stwk1 lnlov_1stwk0 lnlovsn lnlovsn_1stwk1 lnlovsn_1stwk0 freq_tnv freq_tnv_1stwk1 freq_tnv_1stwk0 freq_tnvsn freq_tnvsn_1stwk1 freq_tnvsn_1stwk0 startHH_1day lnvtc_tr_pay lnvtc_tr_pay_1stwk1 lnvtc_tr_pay_1stwk0 lnvisit_tot_cost lnvisit_tot_cost_1stwk1 lnvisit_tot_cost_1stwk0 lnpayrate lnpayrate_1stwk1 lnpayrate_1stwk0 lnvisit_travel_cost lnvisit_travel_cost_1stwk1 lnvisit_travel_cost_1stwk0 hashosp30 hashosp30_1stwk1 hashosp30_1stwk0
 
 loc pp1 ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn
 *loc pp ami hf pn pnltprs pnltprs_X_ami pnltprs_X_hf pnltprs_X_pn
-loc pp2 ami hf pn pnltprs_pred_c_X_ami pnltprs_pred_c_X_hf pnltprs_pred_c_X_pn
-loc pp3 ami hf pn pnltprs_pred_hosp_c_X_ami pnltprs_pred_hosp_c_X_hf pnltprs_pred_hosp_c_X_pn
-loc pp4 ami hf pn pnltprs_hosp_c_X_ami pnltprs_hosp_c_X_hf pnltprs_hosp_c_X_pn
+loc pp2 ami hf pn pnltprs_hosp_c_X_ami pnltprs_hosp_c_X_hf pnltprs_hosp_c_X_pn
+loc pp3 ami hf pn pnltprs_pred_c_X_ami pnltprs_pred_c_X_hf pnltprs_pred_c_X_pn
+loc pp4 ami hf pn pnltprs_pred_hosp_c_X_ami pnltprs_pred_hosp_c_X_hf pnltprs_pred_hosp_c_X_pn
+
+loc n 1
+loc yv lnlov
+areg `yv' `pp`n'' `sp', absorb(offid_nu) vce(cluster offid_nu)
+
+tab ami if e(sample)
+tab hf if e(sample)
+tab pn if e(sample)
+tab hrrpcond if e(sample)
+sum pnltprs_ami pnltprs_hf pnltprs_pn pnltprs_hosp_ami pnltprs_hosp_hf pnltprs_hosp_pn if e(sample)
 
 
-forval n = 1/3 {
+forval n = 1/2 {
   loc file HHeffort_TM`n'
   capture erase `reg'/`file'.xls
   capture erase `reg'/`file'.txt
@@ -156,52 +166,6 @@ forval n = 1/3 {
 
     `out' ctitle(`l_`yv'') keep(`pp`n'') addtext(F statistic, `fstat', Mean dep. var., `mdv')
   }
-}
-
-*only during the first week
-loc file HHeffort_TM_1stwk1
-capture erase `reg'/`file'.xls
-capture erase `reg'/`file'.txt
-capture erase `reg'/`file'.tex
-loc out "outreg2 using `reg'/`file'.xls, dec(3) label append nocons"
-
-loc outcome lnepilength_1stwk1 lnlov_1stwk1 lnlovsn_1stwk1 freq_tnv_1stwk1 freq_tnvsn_1stwk1 startHH_1day lnvtc_tr_pay_1stwk1
-des `outcome'
-
-foreach yv of varlist `outcome' {
-  areg `yv' `pp' `sp', absorb(offid_nu) vce(cluster offid_nu)
-  *if hashosp==0
-  sum `yv' if e(sample)
-  loc mdv: display %9.2f `r(mean)'
-  loc ar2: display %9.2f `e(r2_a)'
-
-  qui test
-  loc fstat: display %9.2f `r(F)'
-
-  `out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv')
-}
-
-*after the first week_tnv freq_tnvsn
-loc file HHeffort_TM_1stwk0
-capture erase `reg'/`file'.xls
-capture erase `reg'/`file'.txt
-capture erase `reg'/`file'.tex
-loc out "outreg2 using `reg'/`file'.xls, dec(3) label append nocons"
-
-loc outcome lnepilength_1stwk0 lnlov_1stwk0 lnlovsn_1stwk0 freq_tnv_1stwk0 freq_tnvsn_1stwk0 startHH_1day lnvtc_tr_pay_1stwk0
-des `outcome'
-
-foreach yv of varlist `outcome' {
-  areg `yv' `pp' `sp', absorb(offid_nu) vce(cluster offid_nu)
-  *if hashosp==0
-  sum `yv' if e(sample)
-  loc mdv: display %9.2f `r(mean)'
-  loc ar2: display %9.2f `e(r2_a)'
-
-  qui test
-  loc fstat: display %9.2f `r(F)'
-
-  `out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv')
 }
 
 *----------------------------------------------------------------------
@@ -290,80 +254,48 @@ loc fstat: display %9.2f `r(F)'
 *falsification check by re-estimating with only MA patients
 *----------------------------------------------------------------------
 
-use `smpl_tm0', clear
-
 *effect on HH efforts
-
+use `smpl_tm0', clear
 *throughout the entire episode
-loc outcome lnepilength lnlov lnlovsn freq_tnv freq_tnvsn startHH_1day lnvtc_tr_pay hashosp30
+loc outcome lnlov lnlov_1stwk1 lnlov_1stwk0 lnlovsn lnlovsn_1stwk1 lnlovsn_1stwk0 freq_tnv freq_tnv_1stwk1 freq_tnv_1stwk0 freq_tnvsn freq_tnvsn_1stwk1 freq_tnvsn_1stwk0 startHH_1day lnvtc_tr_pay lnvtc_tr_pay_1stwk1 lnvtc_tr_pay_1stwk0 lnvisit_tot_cost lnvisit_tot_cost_1stwk1 lnvisit_tot_cost_1stwk0 lnpayrate lnpayrate_1stwk1 lnpayrate_1stwk0 lnvisit_travel_cost lnvisit_travel_cost_1stwk1 lnvisit_travel_cost_1stwk0 hashosp30 hashosp30_1stwk1 hashosp30_1stwk0
 
-loc pp ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn
-*loc pp ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn
+loc pp1 ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn
+*loc pp ami hf pn pnltprs pnltprs_X_ami pnltprs_X_hf pnltprs_X_pn
+loc pp2 ami hf pn pnltprs_hosp_c_X_ami pnltprs_hosp_c_X_hf pnltprs_hosp_c_X_pn
+loc pp3 ami hf pn pnltprs_pred_c_X_ami pnltprs_pred_c_X_hf pnltprs_pred_c_X_pn
+loc pp4 ami hf pn pnltprs_pred_hosp_c_X_ami pnltprs_pred_hosp_c_X_hf pnltprs_pred_hosp_c_X_pn
 
-loc file HHeffort_MA
-capture erase `reg'/`file'.xls
-capture erase `reg'/`file'.txt
-capture erase `reg'/`file'.tex
-loc out "outreg2 using `reg'/`file'.xls, dec(3) label append nocons"
+loc n 1
+loc yv lnlov
+areg `yv' `pp`n'' `sp', absorb(offid_nu) vce(cluster offid_nu)
 
-foreach yv of varlist `outcome' {
-  areg `yv' `pp' `sp', absorb(offid_nu) vce(cluster offid_nu)
-  *if hashosp==0
-  sum `yv' if e(sample)
-  loc mdv: display %9.2f `r(mean)'
-  loc ar2: display %9.2f `e(r2_a)'
+tab ami if e(sample)
+tab hf if e(sample)
+tab pn if e(sample)
+tab hrrpcond if e(sample)
+sum pnltprs_ami pnltprs_hf pnltprs_pn pnltprs_hosp_ami pnltprs_hosp_hf pnltprs_hosp_pn if e(sample)
 
-  qui test
-  loc fstat: display %9.2f `r(F)'
+forval n = 1/2 {
+  loc file HHeffort_MA`n'
+  capture erase `reg'/`file'.xls
+  capture erase `reg'/`file'.txt
+  capture erase `reg'/`file'.tex
+  loc out "outreg2 using `reg'/`file'.xls, dec(3) label append nocons"
 
-  `out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv')
+  foreach yv of varlist `outcome' {
+    areg `yv' `pp`n'' `sp', absorb(offid_nu) vce(cluster offid_nu)
+    *if hashosp==0
+    sum `yv' if e(sample)
+    loc mdv: display %9.2f `r(mean)'
+    loc ar2: display %9.2f `e(r2_a)'
+
+    qui test
+    loc fstat: display %9.2f `r(F)'
+
+    `out' ctitle(`l_`yv'') keep(`pp`n'') addtext(F statistic, `fstat', Mean dep. var., `mdv')
+  }
 }
 
-*only during the first week
-loc file HHeffort_MA_1stwk1
-capture erase `reg'/`file'.xls
-capture erase `reg'/`file'.txt
-capture erase `reg'/`file'.tex
-loc out "outreg2 using `reg'/`file'.xls, dec(3) label append nocons"
-
-loc outcome lnepilength_1stwk1 lnlov_1stwk1 lnlovsn_1stwk1 freq_tnv_1stwk1 freq_tnvsn_1stwk1 startHH_1day lnvtc_tr_pay_1stwk1
-des `outcome'
-
-foreach yv of varlist `outcome' {
-  areg `yv' `pp' `sp', absorb(offid_nu) vce(cluster offid_nu)
-  *if hashosp==0
-  sum `yv' if e(sample)
-  loc mdv: display %9.2f `r(mean)'
-  loc ar2: display %9.2f `e(r2_a)'
-
-  qui test
-  loc fstat: display %9.2f `r(F)'
-
-  `out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv')
-}
-
-*after the first week_tnv freq_tnvsn
-loc file HHeffort_MA_1stwk0
-capture erase `reg'/`file'.xls
-capture erase `reg'/`file'.txt
-capture erase `reg'/`file'.tex
-loc out "outreg2 using `reg'/`file'.xls, dec(3) label append nocons"
-
-loc outcome lnepilength_1stwk0 lnlov_1stwk0 lnlovsn_1stwk0 freq_tnv_1stwk0 freq_tnvsn_1stwk0 startHH_1day lnvtc_tr_pay_1stwk0
-des `outcome'
-
-foreach yv of varlist `outcome' {
-  areg `yv' `pp' `sp', absorb(offid_nu) vce(cluster offid_nu)
-  *if hashosp==0
-  sum `yv' if e(sample)
-  loc mdv: display %9.2f `r(mean)'
-  loc ar2: display %9.2f `e(r2_a)'
-
-  qui test
-  loc fstat: display %9.2f `r(F)'
-
-  `out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv')
-}
 *----------------------------------------------------------------------
 *IV using MA patients
 
