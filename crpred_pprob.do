@@ -39,19 +39,3 @@ reshape wide pnltprob_, i(prvdr) j(cond) st
 
 compress
 save pred_pprob, replace
-
-*--------------
-use pred_pprob, clear
-rename pnltprob_base pnltpr_
-reshape wide pnltpr_, i(prvdr) j(cond) st
-*merge with 2012 HRRP penalty data
-merge 1:m prvdr_num using `shref_hj2012', keep(3) nogen
-*2876 obs reduced to 2147 obs after matching
-
-*compute penalty pressure: use 2012 data, product of share of the office j's patients that come from hosp h and h's penalty rate
-sort offid_nu prvdr_num
-
-foreach d in "ami" "hf" "pn" {
-  capture drop pnltprs_`d'
-  gen pnltpr_`d' = shref_hj * pnltpr_`d'
-}

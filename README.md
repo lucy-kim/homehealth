@@ -1,7 +1,22 @@
 # README for the home health projects
-This project explores topics around hospitals and home health care providers using rich proprietary data on the home health operations from a large multi-state company of 100+ offices. We are currently investigating the impact of hospital readmissions penalty program on downstream care providers' behaviors using home health data.
+This project explores topics around hospitals and home health care providers using proprietary data on the home health operations from a large multi-state home health care company operating 100+ offices. We are currently investigating the impact of hospital readmissions penalty program on downstream care providers' behaviors using these home health data.
 
 The codes below are in chronological order.
+
+## Create Stata data files from raw data files
+**data step (Create a do-file of do files)**
+
+`crofficeID_foradmitID.do`
+- create office ID for each admission ID (i.e. clientID-SOC date pair)
+
+`crreferral.do`
+- create referral source data for each admission from the raw CSV file
+
+`crpost_hncorrect.do`
+- manually change the hospital name in the referral source data
+
+`CMShospdisch_tohh.do`
+- use hospital-week level counts of Medicare hospital discharges to home health destinations for 2011-2014 (Source: Elena's CMS data on inpatient discharge claims)
 
 `crreferralhosp_mcrID.do`
 - get Medicare ID for each hospital that appears in the patient referral source data
@@ -9,8 +24,39 @@ The codes below are in chronological order.
 `crhrrp_penalty.do`
 - create readmissions penalty data for each hospital, by condition & overall
 
-`link_referralhosp_penalty.do`
-- link the admission-level hospital referral source data with readmissions penalty data by the Medicare hospital ID
+`pred_pprob.do`
+- create data from Atul's predicted penalty probability for 2012 and for 2013
+
+## Create intermediary data files with useful variables and analysis samples
+`HRRPpnlty_pressure_hj_2012.do`
+- compute penalty pressure: use 2012 data, product of share of the office j's patients that come from hosp h and h's penalty rate
+
+`anchng_chars_pat2HH.do`
+- investigate the potential changes over time in the characteristics of patients discharged to home health
+
+`crresource_index.do`
+- create a measure of resources spent on each patient--i.e. a summary index of care intensity based on spending
+
+`crepilvl_rehosp_smpl.do`
+- create episode-level data starting for fy 2013-2015 where fy is a year ending June
+
+## Analysis files
+`anHHeffort_readmit.do`
+- Main regression analysis with counterfactuals: examine the impact of the referring hospitals' HRRP penalty pressure on HHAs' efforts on patients
+
+`desc_stats.do`
+- produce descriptive stats
+
+`crepilvl_rehosp_smpl2012.do`
+- create 2012 (baseline) patient sample to interpret the magnitude of our estimates, want to compare the effort levels on the healthiest and sickest people at baseline (2012)
+
+------ old files below
+
+
+
+
+
+
 
 `anvar_hrrppenalty.do`
 - how much pressure from hospitals does each office get?
@@ -24,9 +70,6 @@ The codes below are in chronological order.
 
 `referralsh_byHRRPpenalty_VI.do`
 - test if the referral share has declined because hospital facing high penalty shifting their referrals to in-house home health care provider
-
-`HRRPpnlty_pressure_hj_2012.do`
-- compute penalty pressure: use 2012 data, product of share of the office j's patients that come from hosp h and h's penalty rate
 
 `HHeffort.do`
 - examine the impact of the referring hospitals' HRRP penalty pressure on HHAs' efforts on patients
