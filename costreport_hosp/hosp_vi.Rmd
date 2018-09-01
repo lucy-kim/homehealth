@@ -1,0 +1,449 @@
+---
+title: "Vertical integration trend"
+author: "Lucy Kim"
+date: "8/23/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+rm(list=ls())
+
+source("/Users/kunheekim/Dropbox/Wharton/Research/Labor/code/summarySE.R")
+require(devtools)
+require(digest)
+library(plyr)
+library(ggplot2)
+library(lubridate)
+require(Hmisc)
+library(pastecs)
+library(zoo) # date
+library(plm)
+library(gplots)
+library(apsrtable)
+library("reshape2")
+library(readr)
+library(reshape)
+library(gtable)
+library(grid)
+library(data.table)
+
+theme_set(theme_bw(base_size=12))
+```
+
+## Load data
+```{r}
+df <- read.csv("/Users/kunheekim/Dropbox/Research/VI/vertical-integration/costreport_hosp/data/hosp_vi.csv")
+
+summary(df$pac)
+
+#reorder categories
+df$pac8 <- factor(df$pac, levels=c("hha", "snf", "swbsnf", "irf", "ipf","hospice", "nf", "swbnf"), labels=c("HHA", "SNF", "Swing beds-SNF", "IRF", "IPF", "Hospice", "NF", "Swing beds-NF"))
+```
+
+## Check quick descriptive stats: # general short-term hospitals, Mean % PAC VI over time
+
+# short-term hospitals
+```{r}
+# subset to prov_num, fyear & find unique values
+vv <- c("prov_num", "fyear", "vi")
+df2 <- subset(df, pac=="hha")
+df2 <- df2[vv]
+df2 <- unique(df2)
+
+# bar graph
+ggplot(df2, aes(x=factor(fyear))) +
+  geom_bar(alpha=0.5) +
+  labs(title="Number of general short-term hospitals by year", 
+        x="Year",
+        y="Number of hospitals",
+        caption="Note: The fiscal year reported for each cost reporting period is used.") +
+    theme_bw(base_size = 13) +
+    theme(axis.text.x = element_text(angle=45, vjust=0.6))
+
+ggsave("/Users/kunheekim/Dropbox/Research/VI/gph/numhosp.pdf", width=15, height=10, units="cm")  
+
+# add the number of hospitals vi with HHA
+ggplot(df2, aes(x=factor(fyear))) +
+  geom_bar(aes(fill=factor(vi)))
+
+df2 <- ddply(df, .(pac8, fyear), summarise, vi=100*mean(vi, na.rm=TRUE))
+
+ggplot(df2, aes(x=factor(fyear), y=vi, colour=pac8, group=pac8)) +
+  geom_point() +
+  geom_line() +
+  labs(title="Percent of hospitals vertically integrated with post-acute care (PAC)", 
+        x="Year",
+        y="Percent",
+        colour="PAC",
+        caption="Note: Sample of general short-term hospitals") +
+  theme_bw(base_size = 13) +
+  theme(legend.position="bottom", 
+        axis.text.x = element_text(angle=45, vjust=0.6)) +
+  guides(fill=guide_legend(nrow=1, byrow=TRUE))   
+
+```
+
+Mean % PAC VI over time with each type across all hospital-years
+```{r}
+vipct <- ddply(df, .(pac8), summarise, M=100*mean(vi, na.rm=TRUE))
+vipct
+arrange(vipct, desc(M)) 
+```
+
+% PAC VI over time with each type, by CY; plot the trend
+```{r}
+# df2 <- subset(df, pac=="hha" | pac=="hospice" | pac=="irf" | pac=="snf" )
+# 
+# #reorder categories
+# df2$pac4 <- factor(df2$pac, levels=c("hha", "irf", "snf", "hospice"), labels=c("HHA", "IRF", "SNF", "Hospice"))
+# 
+# df3 <- ddply(df2, .(pac4, cy), summarise, vi=100*mean(vi, na.rm=TRUE))
+
+df2 <- ddply(df, .(pac8, fyear), summarise, vi=100*mean(vi, na.rm=TRUE))
+
+ggplot(df2, aes(x=factor(fyear), y=vi, colour=pac8, group=pac8)) +
+  geom_point() +
+  geom_line() +
+  labs(title="Percent of hospitals vertically integrated with post-acute care (PAC)", 
+        x="Year",
+        y="Percent",
+        colour="PAC",
+        caption="Note: Sample of general short-term hospitals") +
+  theme_bw(base_size = 13) +
+  theme(legend.position="bottom", 
+        axis.text.x = element_text(angle=45, vjust=0.6)) +
+  guides(fill=guide_legend(nrow=1, byrow=TRUE))   
+ggsave("/Users/kunheekim/Dropbox/Research/VI/gph/vitrend.pdf", width=20, height=10, units="cm")  
+```
+
+## VI trend by hospital characteristics: urban, bed size, teaching, ownership type
+```{r}
+# restrict to 4 types of PAC
+df2 <- subset(df, pac=="hha" | pac=="swbsnf" | pac=="irf" | pac=="snf" )
+
+#reorder categories
+df2$pac4 <- factor(df2$pac, levels=c("hha", "snf", "swbsnf", "irf"), labels=c("HHA", "SNF", "Swing beds-SNF", "IRF"))
+```
+
+urban vs rural
+```{r}
+summary(df2$urban)
+
+df3 <- ddply(df2, .(urban, pac4, fyear), summarise, vi=100*mean(vi, na.rm=TRUE))
+df3 <- subset(df3, is.na(urban)==0)
+df3$urban <- factor(df3$urban, levels=c(0,1), labels=c("Rural", "Urban"))
+summary(df3$urban)
+
+ggplot(df3, aes(x=factor(fyear), y=vi, colour=pac4, group=pac4)) + facet_grid(.~urban) +
+  geom_point() +
+  geom_line() +
+  labs(title="Percent of hospitals vertically integrated with post-acute care (PAC)", 
+       subtitle="By urban/rural hospitals",
+        x="Year",
+        y="Percent",
+        colour="PAC",
+        caption="Note: Sample of general short-term hospitals") +
+  theme_bw(base_size = 13) +
+  theme(legend.position="bottom",
+        axis.text.x = element_text(angle=45, vjust=0.6)) +
+  guides(fill=guide_legend(nrow=1, byrow=TRUE))   
+ggsave("/Users/kunheekim/Dropbox/Research/VI/gph/vitrend_urban.pdf", width=20, height=10, units="cm")  
+```
+
+bed size
+```{r}
+summary(df2$size)
+
+df3 <- ddply(df2, .(size, pac4, fyear), summarise, vi=100*mean(vi, na.rm=TRUE))
+df3 <- subset(df3, is.na(size)==0)
+df3$size <- factor(df3$size, levels=c(1,2,3), labels=c("Beds 1-100", "Beds 101-500", "Beds 501+"))
+summary(df3$size)
+
+ggplot(df3, aes(x=factor(fyear), y=vi, colour=pac4, group=pac4)) + facet_grid(.~size) +
+  geom_point() +
+  geom_line() +
+  labs(title="Percent of hospitals vertically integrated with post-acute care (PAC)", 
+       subtitle="By size of hospitals",
+        x="Year",
+        y="Percent",
+        colour="PAC",
+        caption="Note: Sample of general short-term hospitals") +
+  theme_bw(base_size = 13) +
+  theme(legend.position="bottom",
+        axis.text.x = element_text(angle=45, vjust=0.6)) +
+  guides(fill=guide_legend(nrow=1, byrow=TRUE))   
+ggsave("/Users/kunheekim/Dropbox/Research/VI/gph/vitrend_size.pdf", width=20, height=10, units="cm")  
+```
+
+teaching
+```{r}
+summary(df2$teaching)
+
+df3 <- ddply(df2, .(teaching, pac4, fyear), summarise, vi=100*mean(vi, na.rm=TRUE))
+df3 <- subset(df3, is.na(teaching)==0)
+df3$teaching <- factor(df3$teaching, levels=c(0,1), labels=c("Non-teaching", "Teaching"))
+summary(df3$teaching)
+
+ggplot(df3, aes(x=factor(fyear), y=vi, colour=pac4, group=pac4)) + facet_grid(.~teaching) +
+  geom_point() +
+  geom_line() +
+  labs(title="Percent of hospitals vertically integrated with post-acute care (PAC)", 
+       subtitle="By teaching status",
+        x="Year",
+        y="Percent",
+        colour="PAC",
+        caption="Note: Sample of general short-term hospitals") +
+  theme_bw(base_size = 13) +
+  theme(legend.position="bottom",
+        axis.text.x = element_text(angle=45, vjust=0.6)) +
+  guides(fill=guide_legend(nrow=1, byrow=TRUE))   
+ggsave("/Users/kunheekim/Dropbox/Research/VI/gph/vitrend_teaching.pdf", width=20, height=10, units="cm")  
+```
+
+ownership type
+```{r}
+df2$owner3 <- factor(ifelse(df2$own_fp==1, 1, ifelse(df2$own_np==1, 2, 3)), labels=c("For-profit", "Nonprofit", "Government"))
+
+summary(df2$owner3)
+
+df3 <- ddply(df2, .(owner3, pac4, fyear), summarise, vi=100*mean(vi, na.rm=TRUE))
+df3 <- subset(df3, is.na(owner3)==0)
+summary(df3$owner3)
+
+ggplot(df3, aes(x=factor(fyear), y=vi, colour=pac4, group=pac4)) + facet_grid(.~owner3) +
+  geom_point() +
+  geom_line() +
+  labs(title="Percent of hospitals vertically integrated with post-acute care (PAC)", 
+       subtitle="By ownership type",
+        x="Year",
+        y="Percent",
+        colour="PAC",
+        caption="Note: Sample of general short-term hospitals") +
+  theme_bw(base_size = 13) +
+  theme(legend.position="bottom",
+        axis.text.x = element_text(angle=45, vjust=0.6)) +
+  guides(fill=guide_legend(nrow=1, byrow=TRUE))   
+ggsave("/Users/kunheekim/Dropbox/Research/VI/gph/vitrend_owner3.pdf", width=20, height=10, units="cm")  
+```
+
+## Distribution of # home health episodes, # SNF days, # Swing bed-SNF days over time
+HH episodes - standard
+```{r}
+df2 <- subset(df, pac=="hha" & fyear >= 2010)
+summary(df2$totepi_out)
+df2$totepi <- df2$totepi_st + df2$totepi_out
+
+# count # hospitals to see if 2010 has incomplete data - nope
+# df2 <- df2[vv]
+# df2 <- unique(df2)
+# df2$one <- c(1)
+# ddply(df2, .(fyear), summarise, num=sum(one))
+
+p0 <- ggplot(df2, aes(x = factor(fyear), y = totepi_st)) +
+  geom_boxplot()
+
+# compute lower and upper whiskers
+ylim1 <- boxplot.stats(df2$totepi_st)$stats[c(1, 5)]
+
+# scale y limits based on ylim1
+p0 + coord_cartesian(ylim = ylim1*1.05) +
+    labs(title="Number of home health episodes by year", 
+       subtitle="Standard episodes",
+        x="Year",
+        y="Number of episodes",
+        caption="Note: Sample of general short-term hospitals VI with HHA") +
+  theme_bw(base_size = 13)
+ggsave("/Users/kunheekim/Dropbox/Research/VI/gph/hhepitrend_st.pdf", width=20, height=10, units="cm")  
+
+```
+
+HH episodes - outlier
+```{r}
+p0 <- ggplot(df2, aes(x = factor(fyear), y = totepi_out)) +
+  geom_boxplot() 
+
+# compute lower and upper whiskers
+ylim1 <- boxplot.stats(df2$totepi_out)$stats[c(1, 5)]
+
+# scale y limits based on ylim1
+p0 + coord_cartesian(ylim = ylim1*1.05) +
+  labs(title="Number of home health episodes by year", 
+       subtitle="Outlier episodes",
+        x="Year",
+        y="Number of episodes",
+        caption="Note: Sample of general short-term hospitals VI with HHA") +
+  theme_bw(base_size = 13)
+ggsave("/Users/kunheekim/Dropbox/Research/VI/gph/hhepitrend_out.pdf", width=20, height=10, units="cm")  
+
+```
+
+HH episodes - total
+```{r}
+p0 <- ggplot(df2, aes(x = factor(fyear), y = totepi)) +
+  geom_boxplot()
+
+# compute lower and upper whiskers
+ylim1 <- boxplot.stats(df2$totepi)$stats[c(1, 5)]
+
+# scale y limits based on ylim1
+p0 + coord_cartesian(ylim = ylim1*1.05) +
+    labs(title="Number of home health episodes by year", 
+       subtitle="All episodes",
+        x="Year",
+        y="Number of episodes",
+        caption="Note: Sample of general short-term hospitals VI with HHA") +
+  theme_bw(base_size = 13)
+ggsave("/Users/kunheekim/Dropbox/Research/VI/gph/hhepitrend.pdf", width=20, height=10, units="cm")  
+
+```
+
+SNF days
+```{r}
+df2 <- subset(df, pac=="snf" & fyear >= 2010)
+summary(df2$snfdays)
+
+p0 <- ggplot(df2, aes(x = factor(fyear), y = snfdays)) +
+  geom_boxplot()
+
+# compute lower and upper whiskers
+ylim1 <- boxplot.stats(df2$snfdays)$stats[c(1, 5)]
+
+# scale y limits based on ylim1
+p0 + coord_cartesian(ylim = ylim1*1.05) +
+    labs(title="Number of SNF days by year", 
+        x="Year",
+        y="Number of SNF days",
+        caption="Note: Sample of general short-term hospitals VI with SNF") +
+  theme_bw(base_size = 13)
+ggsave("/Users/kunheekim/Dropbox/Research/VI/gph/snfdaystrend.pdf", width=20, height=10, units="cm")  
+```
+
+Swing bed-SNF days
+```{r}
+df2 <- subset(df, pac=="swbsnf" & fyear >= 2010)
+summary(df2$swbsnfdays)
+
+p0 <- ggplot(df2, aes(x = factor(fyear), y = swbsnfdays)) +
+  geom_boxplot()
+
+# compute lower and upper whiskers
+ylim1 <- boxplot.stats(df2$swbsnfdays)$stats[c(1, 5)]
+
+# scale y limits based on ylim1
+p0 + coord_cartesian(ylim = ylim1*1.05) +
+    labs(title="Number of Swing bed-SNF days by year", 
+        x="Year",
+        y="Number of Swing bed-SNF days",
+        caption="Note: Sample of general short-term hospitals VI with Swing bed-SNF") +
+  theme_bw(base_size = 13)
+ggsave("/Users/kunheekim/Dropbox/Research/VI/gph/swbsnfdaystrend.pdf", width=20, height=10, units="cm")  
+```
+
+Total SNF days
+```{r}
+df2 <- subset(df, (pac=="swbsnf" | pac=="snf") & fyear >= 2010)
+summary(df2$totsnfdays)
+
+p0 <- ggplot(df2, aes(x = factor(fyear), y = totsnfdays)) +
+  geom_boxplot()
+
+# compute lower and upper whiskers
+ylim1 <- boxplot.stats(df2$totsnfdays)$stats[c(1, 5)]
+
+# scale y limits based on ylim1
+p0 + coord_cartesian(ylim = ylim1*1.05) +
+    labs(title="Total number of SNF days by year", 
+        x="Year",
+        y="Number of SNF days",
+        caption="Note: Sample of general short-term hospitals VI with SNF or Swing bed-SNF") +
+  theme_bw(base_size = 13)
+ggsave("/Users/kunheekim/Dropbox/Research/VI/gph/totsnfdaystrend.pdf", width=20, height=10, units="cm")  
+```
+
+## Distribution of total # home health episodes, # SNF days, # Swing bed-SNF days in hospital over time
+aggregate across all hospitals for each FY
+
+### HHA
+```{r}
+df2 <- subset(df, pac=="hha" & fyear >= 2010)
+
+df3 <- ddply(df2, .(fyear), summarise, st = sum(totepi_st, na.rm=TRUE), out = sum(totepi_out, na.rm=TRUE))
+
+df3$totepi <- df3$st + df3$out
+
+# standard episodes
+ggplot(df3, aes(x=factor(fyear), y=st/1000)) +
+  geom_bar(stat="identity", alpha=0.5) +
+  labs(title="Total number of home health episodes in VI hospitals by year", 
+       subtitle="Standard 60-day home health episodes",
+        x="Year",
+        y="Number of home health episodes (1000s)",
+        caption="Note: I used the sample of hospitals V.I. with HHAs.") +
+    theme_bw(base_size = 13) 
+ggsave("/Users/kunheekim/Dropbox/Research/VI/gph/hhepi_st.pdf", width=15, height=10, units="cm")  
+
+# outlier episodes
+ggplot(df3, aes(x=factor(fyear), y=out/1000)) +
+  geom_bar(stat="identity", alpha=0.5) +
+  labs(title="Total number of home health episodes in VI hospitals by year", 
+       subtitle="Outlier 60-day home health episodes",
+        x="Year",
+        y="Number of home health episodes (1000s)",
+        caption="Note: I used the sample of hospitals V.I. with HHAs.") +
+    theme_bw(base_size = 13) 
+ggsave("/Users/kunheekim/Dropbox/Research/VI/gph/hhepi_out.pdf", width=15, height=10, units="cm")  
+
+
+# total episodes
+ggplot(df3, aes(x=factor(fyear), y=totepi/1000)) +
+  geom_bar(stat="identity", alpha=0.5) +
+  labs(title="Total number of home health episodes in VI hospitals by year", 
+       subtitle="All 60-day home health episodes",
+        x="Year",
+        y="Number of home health episodes (1000s)",
+        caption="Note: I used the sample of hospitals V.I. with HHAs.") +
+    theme_bw(base_size = 13) 
+ggsave("/Users/kunheekim/Dropbox/Research/VI/gph/hhepi_all.pdf", width=15, height=10, units="cm")  
+
+```
+
+### SNF
+```{r}
+df2 <- subset(df, (pac=="swbsnf" | pac=="snf") & fyear >= 2010)
+
+df3 <- ddply(df2, .(fyear), summarise, snfdays = sum(snfdays, na.rm=TRUE), swbsnfdays = sum(swbsnfdays, na.rm=TRUE), totsnfdays = sum(totsnfdays, na.rm=TRUE))
+df3
+
+# SNF days
+ggplot(df3, aes(x=factor(fyear), y=snfdays/1000)) +
+  geom_bar(stat="identity", alpha=0.5) +
+  labs(title="Total number of SNF days in VI hospitals by year", 
+        x="Year",
+        y="Number of SNF days (1000s)",
+        caption="Note: I used the sample of hospitals V.I. with SNFs.") +
+    theme_bw(base_size = 13) 
+ggsave("/Users/kunheekim/Dropbox/Research/VI/gph/snfdays.pdf", width=15, height=10, units="cm")  
+
+# outlier episodes
+ggplot(df3, aes(x=factor(fyear), y=swbsnfdays/1000)) +
+  geom_bar(stat="identity", alpha=0.5) +
+  labs(title="Total number of swing bed-SNF days in VI hospitals by year", 
+        x="Year",
+        y="Number of swing bed-SNF days (1000s)",
+        caption="Note: I used the sample of hospitals V.I. with swing bed-SNFs.") +
+    theme_bw(base_size = 13) 
+ggsave("/Users/kunheekim/Dropbox/Research/VI/gph/swbsnfdays.pdf", width=15, height=10, units="cm")  
+
+
+# total SNF days
+ggplot(df3, aes(x=factor(fyear), y=totsnfdays/1000)) +
+  geom_bar(stat="identity", alpha=0.5) +
+ labs(title="Total number of SNF and swing bed-SNF days in VI hospitals by year", 
+        x="Year",
+        y="Number of SNF and swing bed-SNF days (1000s)",
+        caption="Note: I used the sample of hospitals V.I. with SNFs.") +
+    theme_bw(base_size = 13) 
+ggsave("/Users/kunheekim/Dropbox/Research/VI/gph/totsnfdays.pdf", width=15, height=10, units="cm")  
+```

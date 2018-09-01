@@ -1,25 +1,27 @@
 # README for the home health projects
 This project explores topics around hospitals and home health care providers using proprietary data on the home health operations from a large multi-state home health care company operating 100+ offices. We are currently investigating the impact of hospital readmissions penalty program on downstream care providers' behaviors using these home health data.
 
+## Location of data files and codes
+Files used for this project are stored in the [Wharton's HPC Cluster](https://research-it.wharton.upenn.edu/documentation/), and specifically in the directory: `/home/hcmg/kunhee/Labor`
+
+A rough structure of this directory is:
+  - `/home/hcmg/kunhee/Labor`: all the codes and output files (e.g. log, lst)
+  - `/home/hcmg/kunhee/Labor/Bayada_data`: all the processed data and raw files contained in subdirectories with descriptive names (e.g. all the raw CSV files containing information on home health patients are in the subdirectory `client_CSV`)
+
+## Project codes
+
 The codes below are in chronological order.
 
-## Create Stata data files from raw data files
-**data step (Create a do-file of do files)**
+### Create Stata data files from raw home health data files
 
-`crofficeID_foradmitID.do`
-- create office ID for each admission ID (i.e. clientID-SOC date pair)
+`initial_setup.sh`
+- All the codes used in this shell script available in `/home/hcmg/kunhee/Labor`.
+- Skip this step because they have all been run; this is just for reference to show all the raw data files that can be potentially used. (Not all these data were used for this project.)
 
-`crreferral.do`
-- create referral source data for each admission from the raw CSV file
-
-`crpost_hncorrect.do`
-- manually change the hospital name in the referral source data
+### Load data from other sources used for the project
 
 `CMShospdisch_tohh.do`
 - use hospital-week level counts of Medicare hospital discharges to home health destinations for 2011-2014 (Source: Elena's CMS data on inpatient discharge claims)
-
-`crreferralhosp_mcrID.do`
-- get Medicare ID for each hospital that appears in the patient referral source data
 
 `crhrrp_penalty.do`
 - create readmissions penalty data for each hospital, by condition & overall
@@ -27,12 +29,19 @@ The codes below are in chronological order.
 `pred_pprob.do`
 - create data from Atul's predicted penalty probability for 2012 and for 2013
 
-## Create intermediary data files with useful variables and analysis samples
+`costreport_hosp > format2552-10 > hospcr.sh` and then `crhosp_chars_cr.do`
+- Create cost report data for hospital characteristics
+
+### Create intermediary data files with useful variables and analysis samples
+
+`crpats_hospreferred.do`
+- create admission level data on patients referred by hospitals only and restrict to patients whose discharge/hospitalization dates are not right truncated due to the sample period limitation
+
 `HRRPpnlty_pressure_hj_2012.do`
 - compute penalty pressure: use 2012 data, product of share of the office j's patients that come from hosp h and h's penalty rate
 
-`anchng_chars_pat2HH.do`
-- investigate the potential changes over time in the characteristics of patients discharged to home health
+`crHHeffort_visit.do`
+- create visit-level data before measuring home health agencies' effort level for each patient
 
 `crresource_index.do`
 - create a measure of resources spent on each patient--i.e. a summary index of care intensity based on spending
@@ -40,7 +49,7 @@ The codes below are in chronological order.
 `crepilvl_rehosp_smpl.do`
 - create episode-level data starting for fy 2013-2015 where fy is a year ending June
 
-## Analysis files
+### Analysis files
 `anHHeffort_readmit.do`
 - Main regression analysis with counterfactuals: examine the impact of the referring hospitals' HRRP penalty pressure on HHAs' efforts on patients
 
@@ -49,79 +58,3 @@ The codes below are in chronological order.
 
 `crepilvl_rehosp_smpl2012.do`
 - create 2012 (baseline) patient sample to interpret the magnitude of our estimates, want to compare the effort levels on the healthiest and sickest people at baseline (2012)
-
------- old files below
-
-
-
-
-
-
-
-`anvar_hrrppenalty.do`
-- how much pressure from hospitals does each office get?
-- within-office over-time variation in incentive/pressure for hospitals to decrease readmissions
-
-`anchng_chars_pat2HH.do`
-- investigate the potential changes over time in the characteristics of patients discharged to home health
-
-`craha.do`
-- construct AHA data for each hospital-year that contain strict and loose integration measures, system ID
-
-`referralsh_byHRRPpenalty_VI.do`
-- test if the referral share has declined because hospital facing high penalty shifting their referrals to in-house home health care provider
-
-`HHeffort.do`
-- examine the impact of the referring hospitals' HRRP penalty pressure on HHAs' efforts on patients
-
-`HHeffort2.do`
-- compare HH efforts by whether patient was before or after 30 days from hospital discharge, penalty pressure, or HRRP or non-HRRP condition
-
-`HHeffort_exper_visitorder.do`
-- add more measures of home health office's efforts at the patient episode level: mean experience of nurses serving patients, order of nurse's visit during the day
-
-`crHHeffort_week.do`
-- create patient-week level data containing referring hospital's penalty pressure, some initial set of effort measures and covariates
-
-`HHeffort3.do`
-- Run regression analysis using the patient-week level data to compare HH efforts by (whether patient was before or after 30 days from hospital discharge), penalty pressure, or HRRP or non-HRRP condition
-
-`HHeffort5.do`
-- Compare HH efforts, readmissions (Reduced form model) by penalty pressure & TA vs MA patients (don't differentiate by penalty vs non-penalty condition and use the overall penalty pressure)
-
-`crresource_index.do`
-- create a measure of resources spent on each patient--i.e. a summary index of care intensity based on spending
-
-`crepi_lvl_rehosp_smpl.do`
-- create episode-level data starting for fy 2013-2015 where fy is a year ending June
-
-`HHeffort4.do`
-- Compare HH efforts, readmissions (Reduced form model) by penalty pressure & HRRP or non-HRRP condition & TA vs MA patients
-
-`HHeffort6.do`
-- Remove cardiorespiratory conditions from the control group; run regs for P(Readmission) in the first week as outcome; and replace the 2012 penalty rate with the 2012 predicted probability of penalty
-
-`desc_stats.do`
-- Run descriptive stats
-
-`inpat_firstdx.do`
-*keep only the first recorded inpat diagnosis code per patient (reference: crinpat_dx.do)
-
-`crepilvl_rehosp_smpl_firstdx.do`
-- reconstruct episode level data after classifying the target and non-target (excl. cardiorespiratory from non-target) conditions using only the first inpat diagnosis code
-
-*---------------------
-## absolutely needed files
-`crCMShospdisch_tohh.do`
-  - use hospital-week level counts of Medicare hospital discharges to home health destinations for 2011-2014 (Source: Elena's CMS data)
-`crpred_pprob.do`
-`HRRPpnlty_pressure_hj_2012.do`
-`anchng_chars_pat2HH.do`
-`crresource_index.do`
-`crepilvl_rehosp_smpl.do`
-`anHHeffort_readmit.do`
-`inpat_firstdx.do`
-`crepilvl_rehosp_smpl_firstdx.do`
-`anHHeffort_readmit_recode_targetcond.do`
-`desc_stats.do`
-`crepilvl_rehosp_smpl2012.do`

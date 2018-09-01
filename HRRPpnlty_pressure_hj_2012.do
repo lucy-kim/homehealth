@@ -227,5 +227,12 @@ foreach d in "ami" "hf" "pn" {
   gen pnltprs_hosp_`d' = pnltprs_`d' * sharetoBayada
 }
 
+*for the placebo test conditions, when calculating penalty pressure, use the median penalty rate for the hospital across the three target conditions for COPD and stroke b/c no penalty rate available for them
+
+*take the median 2012 penalty rate for the hospital across the 3 target conditions
+egen penalty2012_med = rowmedian(penalty2012_ami penalty2012_hf penalty2012_pn)
+
+gen pnltprs_med = shref_hj * penalty2012_med
+
 compress
 save HRRPpnlty_pressure_hj_2012, replace
