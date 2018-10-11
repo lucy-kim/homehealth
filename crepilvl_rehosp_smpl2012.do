@@ -22,22 +22,23 @@ replace icd2 = subinstr(icd2, ".", "",.)
 destring icd2, replace
 
 * AMI (from Table D.1.1 in 2016 report)
-gen ami = icd2==41000 | icd2==41001 | icd2==41010 | icd2==41011 | icd2==41020 | icd2==41021 | icd2==41030 | icd2==41031 | icd2==41040 | icd2==41050 | icd2==41051 | icd2==41060 | icd2==41061 | icd2==41070 | icd2==41071 | icd2==41080 | icd2==41081 | icd2==41090 | icd2==41091
+gen ami = icd2==41000 | icd2==41001 | icd2==41010 | icd2==41011 | icd2==41020 | icd2==41021 | icd2==41030 | icd2==41031 | icd2==41040 | icd2==41041 | icd2==41050 | icd2==41051 | icd2==41060 | icd2==41061 | icd2==41070 | icd2==41071 | icd2==41080 | icd2==41081 | icd2==41090 | icd2==41091
 
 * HF
-tab icd2 if (icd2 >= 40201 & icd2 <= 42843) | icd2==4289
-gen hf = icd2==40201 | icd2==40211 | icd2==40291 | icd2==40401 | icd2==40403 | icd2==40411 | icd2==40413 | icd2==40491 | icd2==40493 | icd2==4280 | icd2==4281 | icd2==4289 | icd2==42820 | icd2==42821 | icd2==42822 | icd2==42823 | icd2==42830 | icd2==42831 | icd2==42832 | icd2==42833 | icd2==42840 | icd2==42841 | icd2==42842 | icd2==42843
+gen hf = icd2==40201 | icd2==40211 | icd2==40291 | icd2==40401 | icd2==40403 | icd2==40411 | icd2==40413 | icd2==40491 | icd2==40493 | icd2==4280 | icd2==4281 | icd2==42820 | icd2==42821 | icd2==42822 | icd2==42823 | icd2==42830 | icd2==42831 | icd2==42832 | icd2==42833 | icd2==42840 | icd2==42841 | icd2==42842 | icd2==42843 | icd2==4289
 
 *PNEU
 gen pneu = icd2==4800 | icd2==4801 | icd2==4802 | icd2==4803 | icd2==4808 | icd2==4809 | icd2==481 | icd2==4820 | icd2==4821 | icd2==4822 | icd2==48230 | icd2==48231 | icd2==48232 | icd2==48239 | icd2==48240 | icd2==48241 | icd2==48242 | icd2==48249 | icd2==48281 | icd2==48282 | icd2==48283 | icd2==48284 | icd2==48289 | icd2==4829 | icd2==4830 | icd2==4831 | icd2==4838 | icd2==485 | icd2==486 | icd2==4870 | icd2==48811 | icd2==5070
 
 * COPD
-tab icd2 if icd2 >=49121 & icd2 <= 49600
-gen copd = icd2==49121 | icd2==49122 | icd2==4918 | icd2==4919 | icd2==4928 | icd2==49320 | icd2==49321 | icd2==49322 | icd2==496
-rename icd2 inpat_dx
+gen copd = inpat_dx_cor=="491.2" | inpat_dx_cor=="491.21" | inpat_dx_cor=="491.22" | inpat_dx_cor=="491.8" | inpat_dx_cor=="491.9" | inpat_dx_cor=="492.8" | inpat_dx_cor=="493.20" | inpat_dx_cor=="493.21" | inpat_dx_cor=="493.22" | inpat_dx_cor=="496"
+
+*Stroke
+gen stroke = icd2==43301 | icd2==43311 | icd2==43321 | icd2==43331 | icd2==43381 | icd2==43391 | icd2==43401 | icd2==43411 | icd2==43491 | icd2==436
+
+drop icd2
 
 *restrict to fy 2013-2015 data
-
 * create fiscal year
 capture drop fy
 gen fy = .
@@ -49,9 +50,9 @@ assert fy!=.
 keep if fy==2012
 
 *create data unique at the admission ID-office ID level
-keep admissionclie offid_nu ami hf pneu copd provider_hosp fy
+keep admissionclie offid_nu ami hf pneu copd stroke provider_hosp fy
 duplicates drop
-collapse (max) ami hf pneu copd, by(admissionclie offid_nu provider_hosp fy)
+collapse (max) ami hf pneu copd stroke, by(admissionclie offid_nu provider_hosp fy)
 duplicates tag admissionclie offid_nu, gen(dup)
 assert dup==0
 drop dup
@@ -76,14 +77,27 @@ drop if dup > 0
 drop dup
 
 *merge with visit-level data for the episodes
-destring admissionclie, replace
+rename admissionclie admissionclie_str
 merge 1:m epiid using epi_visit, keep(1 3) nogen
 *all matched
 drop if offid_nu ==.
+drop admissionclientsocid
+rename admissionclie_str admissionclientsocid
+
+foreach cc in "ami" "hf" "pneu" "copd" {
+  tab `cc'
+  rename `cc' `cc'_epi
+}
+
+*get updated target condition indicators from the above data
+merge m:1 admissionclientsocid using `an', keepusing(ami hf pneu copd stroke) keep(1 3) nogen
+foreach cc in "ami" "hf" "pneu" "copd" {
+  drop `cc'_epi
+}
+drop pneu_new
 
 *drop episodes that had a visit on the day of readmission
 sort epiid visitdate
-
 gen hadvisit_onra = firsthospdate == visitdate & hashosp==1
 bys epiid: egen max = max(hadvisit_onra)
 drop if max==1
@@ -188,10 +202,21 @@ drop mean* status _m
 *for each patient, get total cost using only 1) visit total costs; or 2) visit total costs + visit travel costs; or 3) visit total costs + visit travel costs + pays
 sort epiid visitdate
 
-gen double vtc_tr = visit_travel_ + visit_tot_cost
+*recode costs to 0 if missing
+replace visit_travel_ = 0 if visit_travel_==.
+replace visit_tot_cost = 0 if visit_tot_cost==.
+recast double visit_travel_cost
+recast double visit_tot_cost
+recast double payrate
+
+set type double
+
+gen vtc_tr = visit_travel_ + visit_tot_cost
 
 *subtract transportation pays to workers to avoid double counting
-gen double vtc_tr_pay = vtc_tr + payrate
+gen vtc_tr_pay = vtc_tr + payrate
+
+assert vtc_tr_pay==visit_travel_cost+ visit_tot_cost+ payrate
 
 sum visit_tot_cost vtc_tr vtc_tr_pay
 gen diff1 = vtc_tr-visit_tot_cost
@@ -202,7 +227,7 @@ assert diff1 >=0 & diff2>=0
 sort epiid visitdate
 
 replace paydisc = "SN" if paydisc=="RN" | paydisc=="LPN"
-collapse (sum) vtc_tr_pay, by(epiid visitdate paydisc)
+collapse (sum) vtc_tr_pay visit_travel_cost visit_tot_cost payrate, by(epiid visitdate paydisc)
 rename paydisc discipline
 
 tempfile resource_index
@@ -233,6 +258,7 @@ tab dup
 drop dup
 
 *merge with summary index of costs
+capture drop visit_travel_cost visit_tot_cost payrate
 merge m:1 epiid visitdate discipline using `resource_index', keep(1 3) nogen
 
 *total # visits during episode , visit length
@@ -242,15 +268,17 @@ gen lovsn = lov if discipline=="SN"
 
 *during the entire episode
 preserve
-collapse (sum) tnv tnvsn vtc_tr_pay (mean) lov lovsn, by(epiid epilength)
+collapse (sum) tnv tnvsn vtc_tr_pay visit_travel_cost visit_tot_cost payrate (mean) lov lovsn, by(epiid epilength)
+assert vtc_tr_pay >= (visit_travel_cost+ visit_tot_cost+ payrate-0.00001) & vtc_tr_pay <= (visit_travel_cost+ visit_tot_cost+ payrate+0.00001)
+
 tempfile effort1
 save `effort1'
 restore
 
 *by whether the episode is first week or the rest
 preserve
-collapse (sum) tnv tnvsn vtc_tr_pay (mean) lov lovsn, by(epiid firstwk)
-foreach v of varlist tnv tnvsn vtc_tr_pay lov lovsn {
+collapse (sum) tnv tnvsn vtc_tr_pay visit_travel_cost visit_tot_cost payrate (mean) lov lovsn, by(epiid firstwk)
+foreach v of varlist tnv tnvsn vtc_tr_pay visit_travel_cost visit_tot_cost payrate lov lovsn {
   renam `v' `v'_1stwk
 }
 reshape wide *_1stwk, i(epiid) j(firstwk)
@@ -299,13 +327,14 @@ loc demog `ages' female white noassist livealone `ins'
 loc comorbid ynch* `overallst' `hrfactor' `priorcond'
 
 loc chars `comorbid' `riskhosp' `demog'
-loc vars epiid provider_hosp socdate2 offid_nu clientid fy inpat_dcd ami hf pneu copd hashosp* days2hosp age
+loc vars epiid provider_hosp socdate2 offid_nu clientid fy inpat_dcd ami hf pneu copd stroke hashosp* days2hosp age
 keep `chars' `vars'
 duplicates drop
 
 rename pneu pn
+
 *create indicator for whether episode had 4 HRRP conditions
-gen hrrpcond = ami==1 | hf==1 | copd==1 | pn==1
+gen hrrpcond = ami==1 | hf==1 | pn==1
 
 *Indicator for whether the HH episode started within 1 day from hospital discharge
 gen time2hh = socdate2 - inpat_dcdate_e
@@ -345,15 +374,9 @@ merge m:1 offid_nu prvdr_num using HRRPpnlty_pressure_hj_2012, keep(3) nogen kee
 gen ma = ma_visit==1 | ma_epi==1
 gen tm = 1-ma
 
-*penalty pressure in 2012 for each condition
-drop if copd==1
-
-gen cond = 3
+*create a single penalty pressure variable containing pressure for each condition
 gen pnltprs_c = .
-loc i = 1
 foreach d in "ami" "hf" "pn" {
-  replace cond = `i' if `d'==1
-  loc i = `i'+1
   replace pnltprs_c = pnltprs_`d' if `d'==1
 }
 replace pnltprs_c = 0 if hrrpcond==0
@@ -366,7 +389,6 @@ egen hrrpcond_count = rowtotal(ami hf pn)
 tab hrrpcond_count
 drop if hrrpcond_count > 1
 drop hrrpcond_count
-
 
 tempfile an2
 save `an2'
@@ -424,10 +446,33 @@ save epilvl_rehosp_smpl2012, replace
 *-----------------------------------
 *to interpret the magnitude of our estimates, want to compare the effort levels on the healthiest and sickest people at baseline (2012); get 2012 effort values
 
-use epilvl_rehosp_smpl2012, clear
+*create 30-day readmission indicator in the first week (trun off if the readmission occurred after first week)
+use `HHeffort_visit', clear
+
+*create episode level 30-day hospital readmission indicator
+*get 30-day readmission indicator
+gen days2hosp = firsthospdate - inpat_dcd
+gen start_1stwk = fvd
+gen end_1stwk = fvd+6
+gen hospoccur_1stwk = firsthospdate >= start_1stwk & firsthospdate <= end_1stwk
+assert hospoccur_1stwk==0 if firsthospdate==.
+*list epiid visitd wkidx hashosp firsthospdate hospoccur_1stwk start_1stwk end_1stwk in 40/70
+gen hashosp30 = hashosp * (days2hosp <= 30)
+gen hashosp30_1stwk1 = hashosp * (days2hosp <= 30) * hospoccur_1stwk
+gen hashosp30_1stwk0 = hashosp * (days2hosp <= 30) * (1-hospoccur_1stwk)
+assert (hashosp30_1stwk1+ hashosp30_1stwk0==1 ) |  (hashosp30_1stwk1 + hashosp30_1stwk0==0)
+assert (hashosp30_1stwk1==1 | hashosp30_1stwk0==1 ) if hashosp30==1
+lab var hashosp30_1stwk1 "30-day hospital readmission in the first week"
+lab var hashosp30_1stwk0 "30-day hospital readmission beyond the first week"
+keep epiid hashosp30_1stwk1 hashosp30_1stwk0
+duplicates drop
+
+merge 1:1 epiid using epilvl_rehosp_smpl2012, keep(2 3) nogen
 
 *restrict to targeted patients
 keep if hrrpcond==1
+drop if stroke | copd
+assert stroke==0 & copd==0
 
 *get the sickest & healthiest by looking at the quintile of the sum of risk of hospital categories at baseline
 capture drop riskhosp
@@ -442,13 +487,36 @@ gen healthiest = riskhosp <= `p25'
 
 keep if sickest==1 | healthiest==1
 
-foreach v of varlist vtc_tr_pay* epilength* lov* {
-  gen ln`v' = ln(`v'+1)
+*drop if had a visit on the day of readmission
+*keep if hadvisit_onra==0
+assert ma + tm==1
+
+*drop episode with no nurse visits
+drop if tnvsn==0
+
+*replace pnltprs_c = pnltprs_agg  if hrrpcond==0
+tab hrrpcond, summarize(pnltprs_c)
+
+*create cost per day
+loc cc vtc_tr_pay visit_tot_cost payrate visit_travel_cost
+foreach v of varlist `cc' {
+    gen `v'_pd = `v'/epilength
+
+    loc c2 `v'_1stwk1
+    gen `c2'_pd = `c2'/7 if epilength >=7
+    replace `c2'_pd = `c2'/epilength if epilength <7
+    assert `c2'_pd !=. if `c2'!=.
+
+    loc c3 `v'_1stwk0
+    loc nl = epilength - 7
+    gen `c3'_pd = `c3'/`nl' if epilength >7
+    replace `c3'_pd = 0 if epilength <=7
+    assert `c3'_pd !=. if `c3'!=.
 }
 
-loc out1 epilength lov lovsn freq_tnv freq_tnvsn startHH_1day vtc_tr_pay hashosp30
-loc out2 epilength_1stwk1 lov_1stwk1 lovsn_1stwk1 freq_tnv_1stwk1 freq_tnvsn_1stwk1 vtc_tr_pay_1stwk1
-loc out3 epilength_1stwk0 lov_1stwk0 lovsn_1stwk0 freq_tnv_1stwk0 freq_tnvsn_1stwk0 vtc_tr_pay_1stwk0
+loc out1 lov lovsn freq_tnv freq_tnvsn startHH_1day vtc_tr_pay_pd visit_tot_cost_pd payrate_pd visit_travel_cost_pd hashosp30
+loc out2 lov_1stwk1 lovsn_1stwk1 freq_tnv_1stwk1 freq_tnvsn_1stwk1 vtc_tr_pay_1stwk1_pd visit_tot_cost_1stwk1_pd payrate_1stwk1_pd visit_travel_cost_1stwk1_pd hashosp30_1stwk1
+loc out3 lov_1stwk0 lovsn_1stwk0 freq_tnv_1stwk0 freq_tnvsn_1stwk0    vtc_tr_pay_1stwk0_pd visit_tot_cost_1stwk0_pd payrate_1stwk0_pd   visit_travel_cost_1stwk0_pd hashosp30_1stwk0
 
 loc patchars `riskhosp' age female white
 
@@ -461,7 +529,7 @@ lab var riskhosp_mental "Risk for hospitalization: Recent decline in Mental"
 lab var riskhosp_ge5med "Risk for hospitalization: Take 5+ medications"
 lab var riskhosp_oth "Risk for hospitalization: Other"
 
-loc l_epilength "Episode length (days)"
+/* loc l_epilength "Episode length (days)"
 loc l_lov "Visit length (min)"
 loc l_lovsn "Nurse visit length (min)"
 loc l_freq_tnv "Frequency of visits"
@@ -479,7 +547,7 @@ forval x=1/3 {
   foreach v of varlist `out`x'' {
     lab var `v' "`l_`v''"
   }
-}
+} */
 
 preserve
 keep `out1' `out2' `out3' `patchars' sickest

@@ -160,8 +160,7 @@ forval x = 0/1 {
 *TM patients : effect on HH efforts
 *----------------------------------------------------------------------
 
-*throughout the entire episode
-loc outcome lnlov lnlov_1stwk1 lnlov_1stwk0 lnlovsn lnlovsn_1stwk1 lnlovsn_1stwk0 freq_tnv freq_tnv_1stwk1 freq_tnv_1stwk0 freq_tnvsn freq_tnvsn_1stwk1 freq_tnvsn_1stwk0 startHH_1day lnvtc_tr_pay lnvtc_tr_pay_1stwk1 lnvtc_tr_pay_1stwk0 lnvisit_tot_cost lnvisit_tot_cost_1stwk1 lnvisit_tot_cost_1stwk0 lnpayrate lnpayrate_1stwk1 lnpayrate_1stwk0 lnvisit_travel_cost lnvisit_travel_cost_1stwk1 lnvisit_travel_cost_1stwk0 hashosp30 hashosp30_1stwk1 hashosp30_1stwk0
+loc outcome lnlov lnlov_1stwk1 lnlov_1stwk0 lnlovsn lnlovsn_1stwk1 lnlovsn_1stwk0 freq_tnv freq_tnv_1stwk1 freq_tnv_1stwk0 freq_tnvsn freq_tnvsn_1stwk1 freq_tnvsn_1stwk0 startHH_1day lnvtc_tr_pay_pd lnvtc_tr_pay_1stwk1_pd lnvtc_tr_pay_1stwk0_pd lnvisit_tot_cost_pd lnvisit_tot_cost_1stwk1_pd lnvisit_tot_cost_1stwk0_pd lnpayrate_pd lnpayrate_1stwk1_pd lnpayrate_1stwk0_pd lnvisit_travel_cost_pd lnvisit_travel_cost_1stwk1_pd lnvisit_travel_cost_1stwk0_pd hashosp30 hashosp30_1stwk1 hashosp30_1stwk0
 *just cost per day outcomes
 *loc outcome lnvtc_tr_pay_pd lnvtc_tr_pay_1stwk1_pd lnvtc_tr_pay_1stwk0_pd lnvisit_tot_cost_pd lnvisit_tot_cost_1stwk1_pd lnvisit_tot_cost_1stwk0_pd lnpayrate_pd lnpayrate_1stwk1_pd lnpayrate_1stwk0_pd lnvisit_travel_cost_pd lnvisit_travel_cost_1stwk1_pd lnvisit_travel_cost_1stwk0_pd
 
@@ -289,8 +288,7 @@ sum pnltprs_med if e(sample)
 
 *effect on HH efforts
 
-*throughout the entire episode
-loc outcome lnlov lnlov_1stwk1 lnlov_1stwk0 lnlovsn lnlovsn_1stwk1 lnlovsn_1stwk0 freq_tnv freq_tnv_1stwk1 freq_tnv_1stwk0 freq_tnvsn freq_tnvsn_1stwk1 freq_tnvsn_1stwk0 startHH_1day lnvtc_tr_pay lnvtc_tr_pay_1stwk1 lnvtc_tr_pay_1stwk0 lnvisit_tot_cost lnvisit_tot_cost_1stwk1 lnvisit_tot_cost_1stwk0 lnpayrate lnpayrate_1stwk1 lnpayrate_1stwk0 lnvisit_travel_cost lnvisit_travel_cost_1stwk1 lnvisit_travel_cost_1stwk0 hashosp30 hashosp30_1stwk1 hashosp30_1stwk0
+loc outcome lnlov lnlov_1stwk1 lnlov_1stwk0 lnlovsn lnlovsn_1stwk1 lnlovsn_1stwk0 freq_tnv freq_tnv_1stwk1 freq_tnv_1stwk0 freq_tnvsn freq_tnvsn_1stwk1 freq_tnvsn_1stwk0 startHH_1day lnvtc_tr_pay_pd lnvtc_tr_pay_1stwk1_pd lnvtc_tr_pay_1stwk0_pd lnvisit_tot_cost_pd lnvisit_tot_cost_1stwk1_pd lnvisit_tot_cost_1stwk0_pd lnpayrate_pd lnpayrate_1stwk1_pd lnpayrate_1stwk0_pd lnvisit_travel_cost_pd lnvisit_travel_cost_1stwk1_pd lnvisit_travel_cost_1stwk0_pd hashosp30 hashosp30_1stwk1 hashosp30_1stwk0
 *just cost per day outcomes
 *loc outcome lnvtc_tr_pay_pd lnvtc_tr_pay_1stwk1_pd lnvtc_tr_pay_1stwk0_pd lnvisit_tot_cost_pd lnvisit_tot_cost_1stwk1_pd lnvisit_tot_cost_1stwk0_pd lnpayrate_pd lnpayrate_1stwk1_pd lnpayrate_1stwk0_pd lnvisit_travel_cost_pd lnvisit_travel_cost_1stwk1_pd lnvisit_travel_cost_1stwk0_pd
 

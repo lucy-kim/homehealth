@@ -19,15 +19,66 @@ loc officechars lnallepi lnnw_active_w
 
 loc sp `riskhosp' `demog' `comorbid' i.fy `officechars' `hospchars'
 
+
+*create TM and MA samples
+forval x = 0/1 {
+  use epilvl_rehosp_smpl2, clear
+
+  *drop if had a visit on the day of readmission
+  *keep if hadvisit_onra==0
+  assert ma + tm==1
+
+  *drop episode with no nurse visits
+  drop if tnvsn==0
+
+  *replace pnltprs_c = pnltprs_agg  if hrrpcond==0
+  tab hrrpcond, summarize(pnltprs_c)
+
+  *create cost per day
+  loc cc vtc_tr_pay visit_tot_cost payrate visit_travel_cost
+  foreach v of varlist `cc' {
+      gen `v'_pd = `v'/epilength
+
+      loc c2 `v'_1stwk1
+      gen `c2'_pd = `c2'/7 if epilength >=7
+      replace `c2'_pd = `c2'/epilength if epilength <7
+      assert `c2'_pd !=. if `c2'!=.
+
+      loc c3 `v'_1stwk0
+      loc nl = epilength - 7
+      gen `c3'_pd = `c3'/`nl' if epilength >7
+      replace `c3'_pd = 0 if epilength <=7
+      assert `c3'_pd !=. if `c3'!=.
+  }
+
+  loc cc2 vtc_tr_pay vtc_tr_pay_1stwk1 vtc_tr_pay_1stwk0 visit_tot_cost visit_tot_cost_1stwk1 visit_tot_cost_1stwk0 payrate payrate_1stwk1 payrate_1stwk0 visit_travel_cost visit_travel_cost_1stwk1 visit_travel_cost_1stwk0
+  foreach c of varlist `cc2' {
+    loc v `c'_pd
+    gen ln`v' = ln(`v'+1)
+  }
+
+  preserve
+  keep if tm==`x'
+  count
+  tempfile smpl_tm`x'
+  save `smpl_tm`x''
+  restore
+}
+
+*---------------------------------
 *restrict to sample
+loc pp1 ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn
 
-use epilvl_rehosp_smpl_old2, clear
+*1) main test: AMI/HF/PN vs control (whicch excludes COPD, Stroke, cardiorespiratory condition patients)
+use `smpl_tm1', clear
+drop if copd | stroke | (cardioresp & hrrpcond==0)
+tab hrrpcond
+*control group = 6846 patients
+assert hrrpcond_count <2
 
-keep if tm==1
-
-loc outcome lnlov
-loc pp ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn
-areg `yv' `pp' `sp', absorb(offid_nu) vce(cluster offid_nu)
+loc n 1
+loc yv lnlov
+areg `yv' `pp`n'' `sp', absorb(offid_nu) vce(cluster offid_nu)
 keep if e(sample)
 
 tempfile insmpl
@@ -35,7 +86,6 @@ save `insmpl'
 
 *---------------------------------
 *# referring hospitals
-
 use `insmpl', clear
 keep prvdr_num
 duplicates drop
@@ -43,7 +93,7 @@ count
 *---------------------------------
 
 *what are the top 5 conditions among non-target patients?
-
+use `insmpl', clear
 keep epiid hrrpcond
 duplicates drop
 merge 1:1 epiid using masterclientadmiss2, keep(1 3) nogen keepusing(clientid socdate_e category)
@@ -72,6 +122,7 @@ egen tot = sum(freq)
 gen pct = 100*freq /tot
 gen x = sum(pct)
 rename x cumulative_pct
+gsort -pct
 outsheet using `reg'/inpat_dx_icd_ranking.csv, replace names comma
 restore
 
@@ -80,7 +131,7 @@ destring inpat_dx_cor1, replace
 gen badcontrol = inpat_dx_cor1 >=390 & inpat_dx_cor1<=519
 keep epiid badcontrol
 duplicates drop
-
+restore
 /*
 foreach l in "ENCOUNTERING" "SYMPTOMS" "RHEUMATISM" "CEREBROVASCULAR" "HEART" {
   preserve
@@ -104,67 +155,15 @@ tab category if hrrpcond==0, sort
          RHEUMATISM, EXCLUDING THE BACK |        685        4.64       48.91
                 CEREBROVASCULAR DISEASE |        643        4.35       53.26
            OTHER FORMS OF HEART DISEASE |        551        3.73       56.99 */
-
 *---------------------------------
-*missing values in covariates?
-use epilvl_rehosp_smpl_old, clear
-
-xi i.fy i.age5yr i.size
-loc ages _Iage5yr*
-loc demog `ages' female white noassist livealone `ins'
-loc comorbid ynch* `overallst' `hrfactor' `priorcond'
-loc hospchars vi_hha teaching urban own_* _Isize*
-loc officechars lnallepi lnnw_active_w
-loc sp `riskhosp' `demog' `comorbid' _Ify* `officechars' `hospchars'
-
-foreach v of varlist vtc_tr_pay* epilength* lov* {
-  gen ln`v' = ln(`v'+1)
-}
-
-loc uami "AMI"
-loc uhf "HF"
-loc upn "PN"
-foreach d in "ami" "hf" "pn" {
-  capture drop pnltprs_c_X_`d'
-  gen pnltprs_c_X_`d' = pnltprs_c *`d'
-
-  lab var pnltprs_c_X_`d' "Penalty salience X `u`d''"
-  lab var `d' "Indicator for `u`d''"
-}
 
 
-loc outcome lnepilength lnlov lnlovsn freq_tnv freq_tnvsn startHH_1day lnvtc_tr_pay
-loc pp ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn
+*-------------------
+*summary stats
+*-------------------
+use `insmpl', clear
 
-gen missing = 0
-foreach v of varlist `sp' `outcome' `pp' {
-  replace missing = 1 if `v'==.
-}
-tab missing if tm==1
-
-*---------------------------------
-*# obs for treated conditions
-use epilvl_rehosp_smpl_old, clear
-
-loc pp ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn
-*loc pp ami hf pn pnltprs pnltprs_X_ami pnltprs_X_hf pnltprs_X_pn
-
-areg hashosp30 `pp' `sp' if tm==1, absorb(offid_nu) vce(cluster offid_nu)
-gen insmpl = e(sample)
-
-keep if insmpl==1
-tempfile insmpl
-save `insmpl'
-
-
-*# observations in each condition
-foreach d in "ami" "hf" "pn" {
-  di "# obs in `d'--------"
-  count if `d'==1 & insmpl==1
-}
-tab hrrpcond if insmpl
-
-*get penalty rate by condition
+*create penalty rate by condition covariates
 merge m:1 offid_nu prvdr_num using HRRPpnlty_pressure_hj_2012, keep(3) nogen
 capture drop pr_c
 gen pr_c = .
@@ -175,54 +174,83 @@ replace pr_c = 0 if hrrpcond==0
 lab var pr_c "Condition-specific penalty rate in 2012"
 assert pr_c!=.
 
+*create groupings for AMI, HF, PN, and non-target
+gen nontarget = hrrpcond==0
+assert ami + hf + pn + nontarget==1
+gen gp = 1 if ami==1
+replace gp = 2 if hf
+replace gp = 3 if pn
+replace gp = 4 if nontarget
 
-*mean penalty salience & penalty rate by condition
-foreach d in "ami" "hf" "pn" {
-  di "--------`d'--------"
-  sum pnltprs_c pr_c hashosp30 shref_hj if `d'==1 & insmpl==1
-}
-sum pnltprs_c pr_c shref_hj hashosp30 if insmpl & hrrpcond==0
-sum pnltprs_c pr_c shref_hj hashosp30 if insmpl
+*count observations in each condition
+bys gp: egen nobs = sum(1)
 
-keep if insmpl==1
+loc mainoutc pnltprs_c pr_c hashosp30
+loc effortoutc epilength lov lovsn freq_tnv freq_tnvsn startHH_1day
+loc costoutc vtc_tr_pay visit_tot_cost payrate visit_travel_cost
 
-loc outcome1 epilength lov freq_tnv startHH_1day vtc_tr_pay
-loc outcome2 lnepilength_1stwk1 lnlov_1stwk1 lnlovsn_1stwk1 freq_tnv_1stwk1 freq_tnvsn_1stwk1 lnvtc_tr_pay_1stwk1
-loc outcome3 lnepilength_1stwk0 lnlov_1stwk0 lnlovsn_1stwk0 freq_tnv_1stwk0 freq_tnvsn_1stwk0 lnvtc_tr_pay_1stwk0
+lab var nobs "Observations"
+lab var pnltprs_c "Mean penalty salience"
+lab var pr_c "Mean penalty rate"
+lab var hashosp30 "30-day readmission rate"
+lab var epilength "Episode length (days)"
+lab var startHH_1day "Start HH within 1 day from discharge"
 
-loc l_lnepilength "Ln Episode length (days)"
-loc l_lnlov "Ln Visit length (min)"
-loc l_lnlovsn "Ln Nurse visit length (min)"
-loc l_freq_tnv "Frequency of visits"
-loc l_freq_tnvsn "Frequency of nurse visits"
-loc l_startHH_1day "Start HH within 1 day from discharge"
-loc l_lnvtc_tr_pay "Ln Total cost index ($)"
+des nobs `mainoutc' `effortoutc' `costoutc'
 
-loc l_epilength "Episode length (days)"
-loc l_lov "Visit length (min)"
-loc l_lovsn "Nurse visit length (min)"
-loc l_freq_tnv "Frequency of visits"
-loc l_freq_tnvsn "Frequency of nurse visits"
-loc l_startHH_1day "Start HH within 1 day from discharge"
-loc l_vtc_tr_pay "Total cost index ($)"
+*A. Sample size in each target condition, Mean penalty salience and rate, 30-day readmission rate
+preserve
+keep gp nobs `mainoutc'
+order nobs `mainoutc'
+bys gp: outreg2 using `reg'/summstats1.xls, replace sum(log)  eqkeep(N mean) label
+restore
 
-foreach v of varlist `outcome1' {
-  lab var `v' "`l_`v''"
-}
-
-forval x=1/3 {
-  preserve
-  keep `outcome`x''
-  order `outcome`x''
-  outreg2 using `reg'/summstats`x'.xls, replace sum(log) label  eqkeep(N mean)
-  restore
+*-------------
+*B. Mean measures of effort for whole episode, 1st week, after 1st week
+preserve
+foreach v of varlist lov lovsn freq_tnv freq_tnvsn {
+  rename `v'_1stwk0 `v'_1stwk2
+  rename `v' `v'_1stwk0
 }
 
+keep epiid lov* lovsn* freq_tnv* freq_tnvsn*
+reshape long lov_1stwk lovsn_1stwk freq_tnv_1stwk freq_tnvsn_1stwk, i(epiid) j(wk)
+
+lab var lov_ "Visit length (min)"
+lab var lovsn "Nurse visit length (min)"
+lab var freq_tnv_ "Frequency of visits (per day)"
+lab var freq_tnvsn "Frequency of nurse visits (per day)"
+
+drop epiid
+bys wk: outreg2 using `reg'/summstats2.xls, replace sum(log) eqkeep(N mean) label
+restore
+
+preserve
+keep epiid vtc_tr_pay*pd visit_tot_cost*pd payrate*pd visit_travel_cost*pd
+
+foreach v in "vtc_tr_pay" "visit_tot_cost" "payrate" "visit_travel_cost" {
+  rename `v'_1stwk1_pd `v'_pd_1stwk1
+  rename `v'_1stwk0_pd `v'_pd_1stwk2
+  rename `v'_pd `v'_pd_1stwk0
+}
+
+reshape long vtc_tr_pay_pd_1stwk visit_tot_cost_pd_1stwk payrate_pd_1stwk visit_travel_cost_pd_1stwk, i(epiid) j(wk)
+
+lab var vtc_tr_pay_pd "Total cost index per day ($)"
+lab var visit_tot_cost_pd "Visit cost per day ($)"
+lab var payrate_pd "Visiting worker pays per day ($)"
+lab var visit_travel_cost_pd "Travel reimbursements per day ($)"
+
+drop epiid
+bys wk: outreg2 using `reg'/summstats3.xls, replace sum(log) eqkeep(N mean) label
+restore
+
+*---------------
+*C. Patient characteristics (all patients)
 egen ynchsum = rowtotal(ynch? ynch??)
 
-sum `riskhosp' age female white noassist livealone dual ynchsum `overallst' `hrfactor' `priorcond'
+sum startHH_1day `riskhosp' age female white noassist livealone dual ynchsum `overallst' `hrfactor' `priorcond'
 
-*publication-purpose var labels
 lab var age "Age"
 lab var female "Female"
 lab var dual "Dual eligible"
@@ -253,13 +281,17 @@ lab var riskhosp_ge5med "Risk for hospitalization: Take 5+ medications"
 lab var riskhosp_oth "Risk for hospitalization: Other"
 lab var ynchsum "Sum of 17 Charlson comorbidity indicators"
 
+capture drop nobs
+egen nobs = sum(1)
+lab var nobs "Observations"
+
 preserve
-keep `riskhosp' age female white noassist livealone dual ynchsum `overallst' `hrfactor' `priorcond'
-order `riskhosp' age female white noassist livealone dual ynchsum `overallst' `hrfactor' `priorcond'
-outreg2 using `reg'/summstats4.xls, replace sum(log) label  eqkeep(N mean)
+keep nobs `mainoutc' startHH_1day `riskhosp' age female white noassist livealone dual ynchsum `overallst' `hrfactor' `priorcond'
+order nobs `mainoutc' startHH_1day `riskhosp' age female white noassist livealone dual ynchsum `overallst' `hrfactor' `priorcond'
+outreg2 using `reg'/summstats4.xls, replace sum(log) label eqkeep(N mean)
 restore
 
-*hospital characteristics
+*D & E: office & referring hospital characteristics
 tab size
 gen small = size==1
 gen medium = size==2
@@ -275,17 +307,44 @@ lab var own_gv "Government owned"
 lab var urban "Urban"
 lab var teaching "Teaching"
 lab var vi_hha "Have a hospital-based HHA"
-lab var lnallepi "Ln Num. ongoing episodes in the office"
-lab var lnnw_active_w "Ln Num. active practitioners in the office"
+lab var allepi "Number of ongoing episodes in the office"
+lab var nw_active_w "Number of active practitioners in the office"
+loc officevar allepi nw_active_w
 
 preserve
-keep `officechars' `hospchars'
-order `officechars' `hospchars'
-outreg2 using `reg'/summstats5.xls, replace sum(log) label  eqkeep(N mean)
+keep `officevar' `hospchars'
+order `officevar' `hospchars'
+outreg2 using `reg'/summstats5.xls, replace sum(log) label eqkeep(N mean)
 restore
 
 *---------------------------------
-*by target vs non-target condition
+*Crude diff-in-diff : Mean outcomes for 4 different groups created by 2 axes: 1) zero penalty _rate_ (not salience) vs >0 penalty rate & 2) Target vs non-target conditions
+
+use `insmpl', clear
+merge m:1 prvdr_num offid_nu using HRRPpnlty_pressure_hj_2012, keep(1 3) nogen keepusing(totpenalty2012 shref_hj penalty2012_med)
+
+assert totpenalty2012!=.
+gen penalized = totpenalty2012 > 0
+tab penalized hrrpcond, summarize(vtc_tr_pay_pd)
+tab penalized hrrpcond, summarize(hashosp30)
+
+preserve
+keep hashosp30 vtc_tr_pay_pd penalized hrrpcond
+bys penalized hrrpcond: outreg2 using `reg'/did.xls, replace sum(log) label eqkeep(N mean)
+restore
+
+*---------------------------------
+*What is the median penalty salience for patients that were discharged from a penalized hospital? In other words, the difference in penalty salience between being discharged by a non-penalized hospital (0) or for a non-targeted condition (0) vs. being discharged by the median penalized hospital. I think this may be a more meaningful measure to interpret the magnitude of the program on care and readmissions than using a generic 1 s.d. increase in penalty salience which may be much more or less than the above difference.
+
+* mean penalty salience for patients discharged by a non-penalized hospital (0) or for a non-targeted condition (0) vs. being discharged by the median penalized hospital
+sum pnltprs_med if penalized==0 | hrrpcond==0
+sum pnltprs_med if penalized
+
+*Along similar lines (and this is mainly for my academic interest), if we split penalty salience into its components - what is the median penalty rate for a patient discharged from a penalized hospital and what is the median patient share of home health office for penalized hospitals
+sum penalty2012_med if penalized
+sum penalty2012_med if penalized==0 | hrrpcond==0
+sum shref_hj if penalized
+sum shref_hj if penalized==0 | hrrpcond==0
 
 *---------------------------------
 *variation across offices in penalty pressure (penalty rate in appendix)
