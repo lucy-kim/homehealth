@@ -321,7 +321,7 @@ restore
 *Crude diff-in-diff : Mean outcomes for 4 different groups created by 2 axes: 1) zero penalty _rate_ (not salience) vs >0 penalty rate & 2) Target vs non-target conditions
 
 use `insmpl', clear
-merge m:1 prvdr_num offid_nu using HRRPpnlty_pressure_hj_2012, keep(1 3) nogen keepusing(totpenalty2012 shref_hj penalty2012_med)
+merge m:1 prvdr_num offid_nu using HRRPpnlty_pressure_hj_2012, keep(1 3) nogen keepusing(totpenalty2012 shref_hj penalty2012_ami penalty2012_hf penalty2012_pn)
 
 assert totpenalty2012!=.
 gen penalized = totpenalty2012 > 0
@@ -333,18 +333,41 @@ keep hashosp30 vtc_tr_pay_pd penalized hrrpcond
 bys penalized hrrpcond: outreg2 using `reg'/did.xls, replace sum(log) label eqkeep(N mean)
 restore
 
+assert pnltprs_c!=.
+gen penalized_prs = pnltprs_c > 0
+tab penalized_prs hrrpcond, summarize(vtc_tr_pay_pd)
+tab penalized_prs hrrpcond, summarize(hashosp30)
+
+loc pp1 ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn
+reg hashosp30 c.pnltprs##hrrpcond
+
+gen interaction = pnltprs_c * hrrpcond
+reg hashosp30 hrrpcond interaction
+
+preserve
+keep hashosp30 vtc_tr_pay_pd penalized_prs hrrpcond
+bys penalized_prs hrrpcond: outreg2 using `reg'/did2.xls, replace sum(log) label eqkeep(N mean)
+restore
 *---------------------------------
 *What is the median penalty salience for patients that were discharged from a penalized hospital? In other words, the difference in penalty salience between being discharged by a non-penalized hospital (0) or for a non-targeted condition (0) vs. being discharged by the median penalized hospital. I think this may be a more meaningful measure to interpret the magnitude of the program on care and readmissions than using a generic 1 s.d. increase in penalty salience which may be much more or less than the above difference.
 
-* mean penalty salience for patients discharged by a non-penalized hospital (0) or for a non-targeted condition (0) vs. being discharged by the median penalized hospital
-sum pnltprs_med if penalized==0 | hrrpcond==0
-sum pnltprs_med if penalized
+assert pnltprs_ami!=.
+assert pnltprs_hf!=.
+assert pnltprs_pn!=.
+
+*since the condition-specific penalty salience variables are not zero for non-target conditions, recode them to zero
+foreach d in "ami" "hf" "pn" {
+  replace pnltprs_`d' = 0 if hrrpcond==0
+}
+
+egen meanpp = rowmean(pnltprs_ami pnltprs_hf pnltprs_pn)
+assert meanpp==0 if hrrpcond==0 | penalized==0
+
+* Get median-of-the-mean: get the mean penalty salience across targeted conditions for patients from each penalized hospital, and then take the median across all penalized hospitals
+sum meanpp if penalized & hrrpcond, de
+*median = .0045845  
 
 *Along similar lines (and this is mainly for my academic interest), if we split penalty salience into its components - what is the median penalty rate for a patient discharged from a penalized hospital and what is the median patient share of home health office for penalized hospitals
-sum penalty2012_med if penalized
-sum penalty2012_med if penalized==0 | hrrpcond==0
-sum shref_hj if penalized
-sum shref_hj if penalized==0 | hrrpcond==0
 
 *---------------------------------
 *variation across offices in penalty pressure (penalty rate in appendix)
