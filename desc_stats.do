@@ -226,25 +226,80 @@ bys wk: outreg2 using `reg'/summstats2.xls, replace sum(log) eqkeep(N mean) labe
 restore
 
 preserve
-keep epiid vtc_tr_pay*pd visit_tot_cost*pd payrate*pd visit_travel_cost*pd
+keep epiid vtc_tr_pay* visit_tot_cost* payrate* visit_travel_cost*
+drop *_pd
 
-foreach v in "vtc_tr_pay" "visit_tot_cost" "payrate" "visit_travel_cost" {
-  rename `v'_1stwk1_pd `v'_pd_1stwk1
-  rename `v'_1stwk0_pd `v'_pd_1stwk2
-  rename `v'_pd `v'_pd_1stwk0
+foreach v of varlist vtc_tr_pay visit_tot_cost payrate visit_travel_cost {
+  rename `v'_1stwk0 `v'_1stwk2
+  rename `v' `v'_1stwk0
 }
 
-reshape long vtc_tr_pay_pd_1stwk visit_tot_cost_pd_1stwk payrate_pd_1stwk visit_travel_cost_pd_1stwk, i(epiid) j(wk)
+reshape long vtc_tr_pay_1stwk visit_tot_cost_1stwk payrate_1stwk visit_travel_cost_1stwk, i(epiid) j(wk)
 
-lab var vtc_tr_pay_pd "Total cost index per day ($)"
-lab var visit_tot_cost_pd "Visit cost per day ($)"
-lab var payrate_pd "Visiting worker pays per day ($)"
-lab var visit_travel_cost_pd "Travel reimbursements per day ($)"
+lab var vtc_tr_pay "Total cost index"
+lab var visit_tot_cost "Visit cost"
+lab var payrate "Visiting worker pays"
+lab var visit_travel_cost "Travel reimbursements"
 
+order vtc_tr_pay_1s visit_tot_cos payrate_1stwk visit_travel_
 drop epiid
 bys wk: outreg2 using `reg'/summstats3.xls, replace sum(log) eqkeep(N mean) label
 restore
+*---------------
+* for target & non-target conditions separately
 
+tempfile all
+save `all'
+
+forval x = 0/1 {
+  use `all', clear
+  keep if nontarget==`x'
+
+  preserve
+  foreach v of varlist lov lovsn freq_tnv freq_tnvsn {
+    rename `v'_1stwk0 `v'_1stwk2
+    rename `v' `v'_1stwk0
+  }
+
+  keep epiid lov* lovsn* freq_tnv* freq_tnvsn*
+  reshape long lov_1stwk lovsn_1stwk freq_tnv_1stwk freq_tnvsn_1stwk, i(epiid) j(wk)
+
+  lab var lov_ "Visit length (min)"
+  lab var lovsn "Nurse visit length (min)"
+  lab var freq_tnv_ "Frequency of visits (per day)"
+  lab var freq_tnvsn "Frequency of nurse visits (per day)"
+
+  drop epiid
+  bys wk: outreg2 using `reg'/summstats2_nontarget`x'.xls, replace sum(log) eqkeep(N mean) label
+  restore
+
+  preserve
+  keep epiid vtc_tr_pay* visit_tot_cost* payrate* visit_travel_cost*
+  drop *_pd
+
+  foreach v of varlist vtc_tr_pay visit_tot_cost payrate visit_travel_cost {
+    rename `v'_1stwk0 `v'_1stwk2
+    rename `v' `v'_1stwk0
+  }
+
+  reshape long vtc_tr_pay_1stwk visit_tot_cost_1stwk payrate_1stwk visit_travel_cost_1stwk, i(epiid) j(wk)
+
+  lab var vtc_tr_pay "Total cost index"
+  lab var visit_tot_cost "Visit cost"
+  lab var payrate "Visiting worker pays"
+  lab var visit_travel_cost "Travel reimbursements"
+
+  order vtc_tr_pay_1s visit_tot_cos payrate_1stwk visit_travel_
+  drop epiid
+  bys wk: outreg2 using `reg'/summstats3_nontarget`x'.xls, replace sum(log) eqkeep(N mean) label
+  restore
+}
+
+forval x = 0/1 {
+  use `all', clear
+  keep if nontarget==`x'
+  sum startHH_1day
+}
 *---------------
 *C. Patient characteristics (all patients)
 egen ynchsum = rowtotal(ynch? ynch??)
@@ -316,6 +371,32 @@ keep `officevar' `hospchars'
 order `officevar' `hospchars'
 outreg2 using `reg'/summstats5.xls, replace sum(log) label eqkeep(N mean)
 restore
+*---------------------------------
+* for target & non-target conditions separately
+
+tempfile all2
+save `all2'
+
+forval x = 0/1 {
+  use `all2', clear
+  keep if nontarget==`x'
+
+  capture drop nobs
+  egen nobs = sum(1)
+  lab var nobs "Observations"
+
+  preserve
+  keep nobs `mainoutc' startHH_1day `riskhosp' age female white noassist livealone dual ynchsum `overallst' `hrfactor' `priorcond'
+  order nobs `mainoutc' startHH_1day `riskhosp' age female white noassist livealone dual ynchsum `overallst' `hrfactor' `priorcond'
+  outreg2 using `reg'/summstats4_nontarget`x'.xls, replace sum(log) label eqkeep(N mean)
+  restore
+
+  preserve
+  keep `officevar' `hospchars'
+  order `officevar' `hospchars'
+  outreg2 using `reg'/summstats5_nontarget`x'.xls, replace sum(log) label eqkeep(N mean)
+  restore
+}
 
 *---------------------------------
 *Crude diff-in-diff : Mean outcomes for 4 different groups created by 2 axes: 1) zero penalty _rate_ (not salience) vs >0 penalty rate & 2) Target vs non-target conditions
@@ -365,7 +446,7 @@ assert meanpp==0 if hrrpcond==0 | penalized==0
 
 * Get median-of-the-mean: get the mean penalty salience across targeted conditions for patients from each penalized hospital, and then take the median across all penalized hospitals
 sum meanpp if penalized & hrrpcond, de
-*median = .0045845  
+*median = .0045845
 
 *Along similar lines (and this is mainly for my academic interest), if we split penalty salience into its components - what is the median penalty rate for a patient discharged from a penalized hospital and what is the median patient share of home health office for penalized hospitals
 
