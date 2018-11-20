@@ -498,6 +498,8 @@ drop if tnvsn==0
 tab hrrpcond, summarize(pnltprs_c)
 
 *create cost per day
+gen nl = epilength - 7
+
 loc cc vtc_tr_pay visit_tot_cost payrate visit_travel_cost
 foreach v of varlist `cc' {
     gen `v'_pd = `v'/epilength
@@ -508,15 +510,14 @@ foreach v of varlist `cc' {
     assert `c2'_pd !=. if `c2'!=.
 
     loc c3 `v'_1stwk0
-    loc nl = epilength - 7
-    gen `c3'_pd = `c3'/`nl' if epilength >7
+    gen `c3'_pd = `c3'/nl if epilength >7
     replace `c3'_pd = 0 if epilength <=7
     assert `c3'_pd !=. if `c3'!=.
 }
 
-loc out1 lov lovsn freq_tnv freq_tnvsn startHH_1day vtc_tr_pay_pd visit_tot_cost_pd payrate_pd visit_travel_cost_pd hashosp30
-loc out2 lov_1stwk1 lovsn_1stwk1 freq_tnv_1stwk1 freq_tnvsn_1stwk1 vtc_tr_pay_1stwk1_pd visit_tot_cost_1stwk1_pd payrate_1stwk1_pd visit_travel_cost_1stwk1_pd hashosp30_1stwk1
-loc out3 lov_1stwk0 lovsn_1stwk0 freq_tnv_1stwk0 freq_tnvsn_1stwk0    vtc_tr_pay_1stwk0_pd visit_tot_cost_1stwk0_pd payrate_1stwk0_pd   visit_travel_cost_1stwk0_pd hashosp30_1stwk0
+loc out1 lov lovsn freq_tnv freq_tnvsn startHH_1day vtc_tr_pay visit_tot_cost payrate visit_travel_cost hashosp30
+loc out2 lov_1stwk1 lovsn_1stwk1 freq_tnv_1stwk1 freq_tnvsn_1stwk1 vtc_tr_pay_1stwk1 visit_tot_cost_1stwk1 payrate_1stwk1 visit_travel_cost_1stwk1 hashosp30_1stwk1
+loc out3 lov_1stwk0 lovsn_1stwk0 freq_tnv_1stwk0 freq_tnvsn_1stwk0    vtc_tr_pay_1stwk0 visit_tot_cost_1stwk0 payrate_1stwk0   visit_travel_cost_1stwk0 hashosp30_1stwk0
 
 loc patchars `riskhosp' age female white
 
@@ -529,7 +530,7 @@ lab var riskhosp_mental "Risk for hospitalization: Recent decline in Mental"
 lab var riskhosp_ge5med "Risk for hospitalization: Take 5+ medications"
 lab var riskhosp_oth "Risk for hospitalization: Other"
 
-/* loc l_epilength "Episode length (days)"
+loc l_epilength "Episode length (days)"
 loc l_lov "Visit length (min)"
 loc l_lovsn "Nurse visit length (min)"
 loc l_freq_tnv "Frequency of visits"
@@ -547,7 +548,7 @@ forval x=1/3 {
   foreach v of varlist `out`x'' {
     lab var `v' "`l_`v''"
   }
-} */
+}
 
 preserve
 keep `out1' `out2' `out3' `patchars' sickest

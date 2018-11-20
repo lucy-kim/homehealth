@@ -35,6 +35,8 @@ forval x = 0/1 {
   tab hrrpcond, summarize(pnltprs_c)
 
   *create cost per day
+  gen nl = epilength - 7
+
   loc cc vtc_tr_pay visit_tot_cost payrate visit_travel_cost
   foreach v of varlist `cc' {
       gen `v'_pd = `v'/epilength
@@ -45,8 +47,7 @@ forval x = 0/1 {
       assert `c2'_pd !=. if `c2'!=.
 
       loc c3 `v'_1stwk0
-      loc nl = epilength - 7
-      gen `c3'_pd = `c3'/`nl' if epilength >7
+      gen `c3'_pd = `c3'/nl if epilength >7
       replace `c3'_pd = 0 if epilength <=7
       assert `c3'_pd !=. if `c3'!=.
   }
@@ -90,6 +91,31 @@ use `insmpl', clear
 keep prvdr_num
 duplicates drop
 count
+
+*---------------------------------
+*what proportion of hospitals are penalized for at least 1 condition in our sample?
+
+use `insmpl', clear
+keep prvdr_num offid_nu
+duplicates drop
+merge 1:1 prvdr_num offid_nu using HRRPpnlty_pressure_hj_2012, keepusing(totpenalty2012 shref_hj) nogen keep(1 3)
+
+preserve
+keep prvdr_num totpenalty2012
+duplicates drop
+count
+assert totpenalty2012!=.
+gen penalized = totpenalty2012 > 0
+tab penalized
+restore
+
+assert shref_hj!=.
+gen posshare = shref_hj > 0
+tab posshare
+
+gen pnltprs = shref_hj * totpenalty2012
+gen pressure = pnltprs > 0
+tab pressure
 *---------------------------------
 
 *what are the top 5 conditions among non-target patients?
