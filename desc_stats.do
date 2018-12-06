@@ -69,6 +69,7 @@ forval x = 0/1 {
 *---------------------------------
 *restrict to sample
 loc pp1 ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn
+loc pp2 ami hf pn pnltprs_hosp_c_X_ami pnltprs_hosp_c_X_hf pnltprs_hosp_c_X_pn
 
 *1) main test: AMI/HF/PN vs control (whicch excludes COPD, Stroke, cardiorespiratory condition patients)
 use `smpl_tm1', clear
@@ -91,6 +92,13 @@ use `insmpl', clear
 keep prvdr_num
 duplicates drop
 count
+*---------------------------------
+*proportion of episodes are 1 week or longer
+
+use `insmpl', clear
+keep epiid epilength
+gen gteq1wk = epilength >= 7
+tab gteq1wk
 
 *---------------------------------
 *what proportion of hospitals are penalized for at least 1 condition in our sample?
@@ -476,6 +484,43 @@ sum meanpp if penalized & hrrpcond, de
 
 *Along similar lines (and this is mainly for my academic interest), if we split penalty salience into its components - what is the median penalty rate for a patient discharged from a penalized hospital and what is the median patient share of home health office for penalized hospitals
 
+
+*for robustness check: What is the median alternative penalty salience for patients that were discharged from a penalized hospital?
+loc pp2 ami hf pn pnltprs_hosp_c_X_ami pnltprs_hosp_c_X_hf pnltprs_hosp_c_X_pn
+use `smpl_tm1', clear
+drop if copd | stroke | (cardioresp & hrrpcond==0)
+tab hrrpcond
+*control group = 6846 patients
+assert hrrpcond_count <2
+
+loc n 2
+loc yv lnlov
+areg `yv' `pp`n'' `sp', absorb(offid_nu) vce(cluster offid_nu)
+keep if e(sample)
+
+tempfile insmpl2
+save `insmpl2'
+
+merge m:1 prvdr_num offid_nu using HRRPpnlty_pressure_hj_2012, keep(1 3) nogen keepusing(totpenalty2012 shref_hj penalty2012_ami penalty2012_hf penalty2012_pn)
+
+assert totpenalty2012!=.
+gen penalized = totpenalty2012 > 0
+
+assert pnltprs_hosp_ami!=.
+assert pnltprs_hosp_hf!=.
+assert pnltprs_hosp_pn!=.
+
+*since the condition-specific penalty salience variables are not zero for non-target conditions, recode them to zero
+foreach d in "ami" "hf" "pn" {
+  replace pnltprs_hosp_`d' = 0 if hrrpcond==0
+}
+
+egen meanpp = rowmean(pnltprs_hosp_ami pnltprs_hosp_hf pnltprs_hosp_pn)
+assert meanpp==0 if hrrpcond==0 | penalized==0
+
+* Get median-of-the-mean: get the mean penalty salience across targeted conditions for patients from each penalized hospital, and then take the median across all penalized hospitals
+sum meanpp if penalized & hrrpcond, de
+*median = .0005857 
 *---------------------------------
 *variation across offices in penalty pressure (penalty rate in appendix)
 use `insmpl' , clear

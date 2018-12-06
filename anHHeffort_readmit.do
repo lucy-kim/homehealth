@@ -185,7 +185,7 @@ tab hrrpcond
 *control group = 6846 patients
 assert hrrpcond_count <2
 
-loc n 1
+loc n 2
 loc yv lnlov
 areg `yv' `pp`n'' `sp', absorb(offid_nu) vce(cluster offid_nu)
 
@@ -195,26 +195,26 @@ tab pn if e(sample)
 tab hrrpcond if e(sample)
 sum pnltprs_ami pnltprs_hf pnltprs_pn pnltprs_hosp_ami pnltprs_hosp_hf pnltprs_hosp_pn if e(sample)
 
-forval n = 1/1 {
-  loc file HHeffort_TM`n'
-  capture erase `reg'/`file'.xls
-  capture erase `reg'/`file'.txt
-  capture erase `reg'/`file'.tex
-  loc out "outreg2 using `reg'/`file'.xls, dec(3) label append nocons"
 
-  foreach yv of varlist `outcome' {
-    areg `yv' `pp`n'' `sp', absorb(offid_nu) vce(cluster offid_nu)
-    *if hashosp==0
-    sum `yv' if e(sample)
-    loc mdv: display %9.2f `r(mean)'
-    loc ar2: display %9.2f `e(r2_a)'
+loc file HHeffort_TM`n'
+capture erase `reg'/`file'.xls
+capture erase `reg'/`file'.txt
+capture erase `reg'/`file'.tex
+loc out "outreg2 using `reg'/`file'.xls, dec(3) label append nocons"
 
-    qui test
-    loc fstat: display %9.2f `r(F)'
+foreach yv of varlist `outcome' {
+  areg `yv' `pp`n'' `sp', absorb(offid_nu) vce(cluster offid_nu)
+  *if hashosp==0
+  sum `yv' if e(sample)
+  loc mdv: display %9.2f `r(mean)'
+  loc ar2: display %9.2f `e(r2_a)'
 
-    `out' ctitle(`l_`yv'') keep(`pp`n'') addtext(F statistic, `fstat', Mean dep. var., `mdv')
-  }
+  qui test
+  loc fstat: display %9.2f `r(F)'
+
+  `out' ctitle(`l_`yv'') keep(`pp`n'') addtext(F statistic, `fstat', Mean dep. var., `mdv')
 }
+
 
 *2) placebo test 1 : COPD (none of the 3 target conditions) vs control (excludes stroke, cardiorespiratory) - RESUME
 use `smpl_tm1', clear
@@ -334,4 +334,86 @@ forval n = 1/2 {
 
     `out' ctitle(`l_`yv'') keep(`pp`n'') addtext(F statistic, `fstat', Mean dep. var., `mdv')
   }
+}
+
+*----------------------------------------------------------------------
+*Robustness check by using penalty rate alone instead of penalty salience
+*----------------------------------------------------------------------
+use `smpl_tm1', clear
+drop if copd | stroke | (cardioresp & hrrpcond==0)
+tab hrrpcond
+*control group = 6846 patients
+assert hrrpcond_count <2
+
+loc n 1
+loc yv lnlov
+areg `yv' `pp`n'' `sp', absorb(offid_nu) vce(cluster offid_nu)
+
+tab ami if e(sample)
+tab hf if e(sample)
+tab pn if e(sample)
+tab hrrpcond if e(sample)
+sum pnltprs_ami pnltprs_hf pnltprs_pn pnltprs_hosp_ami pnltprs_hosp_hf pnltprs_hosp_pn if e(sample)
+
+preserve
+*get 2012 penalty rate to calculate penalty pressure for each office j - hospital h pair later
+use hrrp_penalty, clear
+keep prvdr_num penalty2012_*
+duplicates drop
+
+*rename fyear fy
+destring prvdr_num, replace
+
+foreach v of varlist *penalty* {
+  replace `v' = 0 if `v'==.
+}
+
+rename penalty2012_chf penalty2012_hf
+rename penalty2012_pneum penalty2012_pn
+
+tempfile hrrp_penalty
+save `hrrp_penalty'
+restore
+
+merge m:1 prvdr_num using `hrrp_penalty', keepusing(penalty2012*) keep(1 3) nogen
+
+*create condition-specific penalty rate in a single variable
+gen prate_c = .
+foreach d in "ami" "hf" "pn" {
+  replace prate_c = penalty2012_`d' if `d'==1
+}
+replace prate_c = 0 if hrrpcond==0
+assert prate_c!=.
+
+*create interaction term of penalty rate and target condition indicators
+loc uami "AMI"
+loc uhf "HF"
+loc upn "PN"
+foreach d in "ami" "hf" "pn" {
+  capture drop prate_c_X_`d'
+  gen prate_c_X_`d' = prate_c *`d'
+
+  lab var prate_c_X_`d' "Condition-specific penalty rate X `u`d''"
+}
+
+loc pp7 ami hf pn prate_c_X_ami prate_c_X_hf prate_c_X_pn
+
+loc n 7
+loc file HHeffort_TM`n'_prate
+capture erase `reg'/`file'.xls
+capture erase `reg'/`file'.txt
+capture erase `reg'/`file'.tex
+loc out "outreg2 using `reg'/`file'.xls, dec(3) label append nocons"
+
+foreach yv of varlist `outcome' {
+  areg `yv' `pp`n'' `sp', absorb(offid_nu) vce(cluster offid_nu)
+  *if hashosp==0
+  sum `yv' if e(sample)
+  loc mdv: display %9.2f `r(mean)'
+  loc ar2: display %9.2f `e(r2_a)'
+
+  qui test
+  loc fstat: display %9.2f `r(F)'
+
+  `out' ctitle(`l_`yv'') keep(`pp`n'') addtext(F statistic, `fstat', Mean dep. var., `mdv')
 }
