@@ -202,6 +202,8 @@ count if sharetoBayada>1 & sharetoBayada!=.
 *25 office-hospital pair obs
 *recode to 1 if the share exceeds 1
 replace sharetoBayada = 1 if sharetoBayada > 1 & sharetoBayada!=.
+sum sharetoBayada, de
+sum sharetoBayada if sharetoBayada >0 , de
 
 tempfile sharetoBayada
 save `sharetoBayada'
