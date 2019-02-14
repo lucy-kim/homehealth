@@ -185,7 +185,7 @@ tab hrrpcond
 *control group = 6846 patients
 assert hrrpcond_count <2
 
-loc n 2
+loc n 1
 loc yv lnlov
 areg `yv' `pp`n'' `sp', absorb(offid_nu) vce(cluster offid_nu)
 
@@ -215,7 +215,65 @@ foreach yv of varlist `outcome' {
   `out' ctitle(`l_`yv'') keep(`pp`n'') addtext(F statistic, `fstat', Mean dep. var., `mdv')
 }
 
+*----------------------------------------------------------------------
+*HF patients: are the sicker people driving the result? if the effect we find for heart failure patients is driven by the sicker patients among them. We could test this using a simple triple diff where we add an interaction term with an indicator for the patient being in the top half of sick patients (by some sickness severity score)
+*----------------------------------------------------------------------
 
+use `smpl_tm1', clear
+drop if copd | stroke | (cardioresp & hrrpcond==0)
+tab hrrpcond
+*control group = 6846 patients
+assert hrrpcond_count <2
+
+* create a severity measure: sum of risk of hospitalization categories at baseline
+capture drop riskhosp
+egen riskhosp = rowtotal(riskhosp_* hrfactor_* priorcond_*)
+tab riskhosp
+
+sum riskhosp, de
+loc p50 = `r(p50)'
+gen sicker = riskhosp > `p50'
+lab var sicker "Sicker"
+
+* if the sicker includes patients with riskhosp=median, then those with HF (or PN) in the bottom half of severity always have zero penalty salience, so the triple interaction terms drop out when interacted with HF / PN
+tab hf if sicker, summarize(pnltprs_c)
+tab pn if sicker, summarize(pnltprs_c)
+
+foreach v of varlist ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn {
+  gen sicker_`v' = sicker*`v'
+
+  loc xlab: di "`: var label `v''"
+  lab var sicker_`v' "Sicker X `xlab'"
+}
+loc v pnltprs_c
+gen sicker_pnltprs_c = sicker*`v'
+lab var `v' "Condition-specific penalty salience"
+loc xlab: di "`: var label `v''"
+lab var sicker_`v' "Sicker X `xlab'
+
+des sicker*
+
+loc pp ami hf pn sicker sicker_ami sicker_hf sicker_pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn sicker_pnltprs_c_X_ami sicker_pnltprs_c_X_hf sicker_pnltprs_c_X_pn
+
+loc file HHeffort_TM1_tripleDiff
+capture erase `reg'/`file'.xls
+capture erase `reg'/`file'.txt
+capture erase `reg'/`file'.tex
+loc out "outreg2 using `reg'/`file'.xls, dec(3) label append nocons"
+
+foreach yv of varlist `outcome' {
+  areg `yv' `pp' `sp', absorb(offid_nu) vce(cluster offid_nu)
+  *if hashosp==0
+  sum `yv' if e(sample)
+  loc mdv: display %9.2f `r(mean)'
+  loc ar2: display %9.2f `e(r2_a)'
+
+  qui test
+  loc fstat: display %9.2f `r(F)'
+
+  `out' ctitle(`l_`yv'') keep(`pp') addtext(F statistic, `fstat', Mean dep. var., `mdv')
+}
+*----------------------------------------------------------------------
 *2) placebo test 1 : COPD (none of the 3 target conditions) vs control (excludes stroke, cardiorespiratory) - RESUME
 use `smpl_tm1', clear
 drop if hrrpcond
