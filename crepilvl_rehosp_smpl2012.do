@@ -474,7 +474,7 @@ keep if hrrpcond==1
 drop if stroke | copd
 assert stroke==0 & copd==0
 
-*get the sickest & healthiest by looking at the quintile of the sum of risk of hospital categories at baseline
+*get the sickest & healthiest by looking at the quintile of the sum of risk of hospitalization categories at baseline
 capture drop riskhosp
 egen riskhosp = rowtotal(riskhosp_* hrfactor_* priorcond_*)
 tab riskhosp
