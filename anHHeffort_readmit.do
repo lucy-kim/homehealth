@@ -230,12 +230,32 @@ capture drop riskhosp
 egen riskhosp = rowtotal(riskhosp_* hrfactor_* priorcond_*)
 tab riskhosp
 
-sum riskhosp, de
-loc p50 = `r(p50)'
-gen sicker = riskhosp > `p50'
+*divide patients into 4 groups: AMI, HF, PN, non-targeted
+gen group = ""
+replace group = "AMI" if ami==1
+replace group = "HF" if hf==1
+replace group = "PN" if pn==1
+replace group = "Non-target" if hrrpcond==0
+assert group!=""
+
+gen sicker = .
+*use median for each condition separately
+foreach x in "AMI" "HF" "PN" "Non-target" {
+  sum riskhosp if group=="`x'", de
+  loc p50 = `r(p50)'
+  replace sicker = riskhosp > `p50' if group=="`x'"
+}
+*use median for target vs non-target conditions separately
+// forval x = 0/1 {
+//   sum riskhosp if hrrpcond==`x', de
+//   loc p50 = `r(p50)'
+//   replace sicker = riskhosp > `p50' if hrrpcond==`x'
+// }
+assert sicker!=.
 lab var sicker "Sicker"
 
 * if the sicker includes patients with riskhosp=median, then those with HF (or PN) in the bottom half of severity always have zero penalty salience, so the triple interaction terms drop out when interacted with HF / PN
+tab ami if sicker, summarize(pnltprs_c)
 tab hf if sicker, summarize(pnltprs_c)
 tab pn if sicker, summarize(pnltprs_c)
 
