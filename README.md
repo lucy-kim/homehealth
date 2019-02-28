@@ -13,7 +13,6 @@ The codes below are in chronological order.
 ### Create Stata data files from raw home health data files
 
 `initial_setup.sh`
-- All the codes used in this shell script available in `/home/hcmg/kunhee/Labor`.
 - Skip this step because they have all been run; this is just for reference to show all the raw data files that can be potentially used. (Not all these data were used for this project.)
 
 ### Load data from other sources used for the project
@@ -49,7 +48,7 @@ The codes below are in chronological order.
 
 ### Analysis files
 `anHHeffort_readmit.do`
-- Main regression analysis with counterfactuals: examine the impact of the referring hospitals' HRRP penalty pressure on HHAs' efforts on patients
+- Main regression analysis with heterogeneity and robustness check analyses: examine the impact of the referring hospitals' HRRP penalty pressure on HHAs' efforts on patients
 
 `desc_stats.do`
 - produce descriptive stats
