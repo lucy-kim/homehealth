@@ -431,6 +431,20 @@ forval x = 0/1 {
   outreg2 using `reg'/summstats5_nontarget`x'.xls, replace sum(log) label eqkeep(N mean)
   restore
 }
+*------------------
+*additional summary stats
+
+*Average episode length in days (targeted, non-targeted, overall)
+*Average duration between hospital discharge and start of episode (need targeted only)
+
+lab var epilength "Episode length (days)"
+lab var time2hh "Duration between hospital discharge and start of episode"
+loc outc epilength time2hh
+des `outc'
+
+bys nontarget: sum epilength
+sum epilength
+sum time2hh if nontarget==0
 
 *---------------------------------
 *Crude diff-in-diff : Mean outcomes for 4 different groups created by 2 axes: 1) zero penalty _rate_ (not salience) vs >0 penalty rate & 2) Target vs non-target conditions
@@ -520,7 +534,7 @@ assert meanpp==0 if hrrpcond==0 | penalized==0
 
 * Get median-of-the-mean: get the mean penalty salience across targeted conditions for patients from each penalized hospital, and then take the median across all penalized hospitals
 sum meanpp if penalized & hrrpcond, de
-*median = .0005857 
+*median = .0005857
 *---------------------------------
 *variation across offices in penalty pressure (penalty rate in appendix)
 use `insmpl' , clear

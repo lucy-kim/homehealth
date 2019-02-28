@@ -1,12 +1,10 @@
 # README for the home health projects
 This project explores topics around hospitals and home health care providers using proprietary data on the home health operations from a large multi-state home health care company operating 100+ offices. We are currently investigating the impact of hospital readmissions penalty program on downstream care providers' behaviors using these home health data.
 
-## Location of data files and codes
-Files used for this project are stored in the [Wharton's HPC Cluster](https://research-it.wharton.upenn.edu/documentation/), and specifically in the directory: `/home/hcmg/kunhee/Labor`
+## Location of data files
+Files used for this project are stored in the [Wharton's HPC Cluster](https://research-it.wharton.upenn.edu/documentation/), and specifically in the directory: `~/Labor`
 
-A rough structure of this directory is:
-  - `/home/hcmg/kunhee/Labor`: all the codes and output files (e.g. log, lst)
-  - `/home/hcmg/kunhee/Labor/Bayada_data`: all the processed data and raw files contained in subdirectories with descriptive names (e.g. all the raw CSV files containing information on home health patients are in the subdirectory `client_CSV`)
+All data files are in the directory `~/Labor/Bayada_data`. All the processed data and raw files contained in subdirectories with descriptive names (e.g. all the raw CSV files containing information on home health patients are in the subdirectory `client_CSV`)
 
 ## Project codes
 

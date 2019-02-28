@@ -216,7 +216,7 @@ foreach yv of varlist `outcome' {
 }
 
 *----------------------------------------------------------------------
-*HF patients: are the sicker people driving the result? if the effect we find for heart failure patients is driven by the sicker patients among them. We could test this using a simple triple diff where we add an interaction term with an indicator for the patient being in the top half of sick patients (by some sickness severity score)
+*Heterogneity Analysis: HF patients: are the sicker people driving the result? if the effect we find for heart failure patients is driven by the sicker patients among them. We could test this using a simple triple diff where we add an interaction term with an indicator for the patient being in the top half of sick patients (by some sickness severity score)
 *----------------------------------------------------------------------
 
 use `smpl_tm1', clear
@@ -478,6 +478,62 @@ loc pp7 ami hf pn prate_c_X_ami prate_c_X_hf prate_c_X_pn
 
 loc n 7
 loc file HHeffort_TM`n'_prate
+capture erase `reg'/`file'.xls
+capture erase `reg'/`file'.txt
+capture erase `reg'/`file'.tex
+loc out "outreg2 using `reg'/`file'.xls, dec(3) label append nocons"
+
+foreach yv of varlist `outcome' {
+  areg `yv' `pp`n'' `sp', absorb(offid_nu) vce(cluster offid_nu)
+  *if hashosp==0
+  sum `yv' if e(sample)
+  loc mdv: display %9.2f `r(mean)'
+  loc ar2: display %9.2f `e(r2_a)'
+
+  qui test
+  loc fstat: display %9.2f `r(F)'
+
+  `out' ctitle(`l_`yv'') keep(`pp`n'') addtext(F statistic, `fstat', Mean dep. var., `mdv')
+}
+
+*------------------------------------------------------------------------
+* Robustness check: use probability of readmission within 30 days of the start of the episode, instead of 30 days from the hospital discharge date
+*------------------------------------------------------------------------
+use `smpl_tm1', clear
+drop if copd | stroke | (cardioresp & hrrpcond==0)
+tab hrrpcond
+*control group = 6846 patients
+assert hrrpcond_count <2
+
+loc n 1
+loc yv lnlov
+areg `yv' `pp`n'' `sp', absorb(offid_nu) vce(cluster offid_nu)
+keep if e(sample)
+
+tab ami if e(sample)
+tab hf if e(sample)
+tab pn if e(sample)
+tab hrrpcond if e(sample)
+sum pnltprs_ami pnltprs_hf pnltprs_pn pnltprs_hosp_ami pnltprs_hosp_hf pnltprs_hosp_pn if e(sample)
+
+*define readmission within 30 days of the start of the episode
+
+*get the first hospitalization date & first episode date from visit-level data
+preserve
+use HHeffort_visit, clear
+keep epiid firsthospdate fvd
+duplicates drop
+tempfile tmp
+save `tmp'
+restore
+
+merge 1:1 epiid using `tmp', keep(1 3) nogen
+
+gen days2hosp_fromHHstart = firsthospdate - fvd
+gen hashosp30_fromHHstart = hashosp * (days2hosp_fromHHstart <= 30)
+loc outcome hashosp30_fromHHstart
+
+loc file readmit_TM`n'_fromHHstart
 capture erase `reg'/`file'.xls
 capture erase `reg'/`file'.txt
 capture erase `reg'/`file'.tex
