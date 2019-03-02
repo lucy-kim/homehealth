@@ -20,12 +20,6 @@ The codes below are in chronological order.
 `CMShospdisch_tohh.do`
 - use hospital-week level counts of Medicare hospital discharges to home health destinations for 2011-2014 (Source: Elena's CMS data on inpatient discharge claims)
 
-`crhrrp_penalty.do`
-- create readmissions penalty data for each hospital, by condition & overall
-
-`pred_pprob.do`
-- create data from Atul's predicted penalty probability for 2012 and for 2013
-
 `costreport_hosp > format2552-10 > hospcr.sh` and then `crhosp_chars_cr.do`
 - Create cost report data for hospital characteristics
 
@@ -42,6 +36,9 @@ The codes below are in chronological order.
 
 `crresource_index.do`
 - create a measure of resources spent on each patient--i.e. a summary index of care intensity based on spending
+
+`crother_covariates.do`
+- create data containing additional covariates: 1) total number of episodes going on, # active workers in the office on each day; 2) characteristics of the referring hospital
 
 `crepilvl_rehosp_smpl.do`
 - create episode-level data starting for fy 2013-2015 where fy is a year ending June

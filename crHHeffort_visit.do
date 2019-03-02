@@ -1,4 +1,4 @@
-*create visit-level data before measuring home health agencies' effort level for each patient 
+*create visit-level data before measuring home health agencies' effort level for each patient
 
 loc path /home/hcmg/kunhee/Labor/Bayada_data
 loc gph /home/hcmg/kunhee/Labor/gph
@@ -31,8 +31,8 @@ tab icd2 if hf
 tab inpat_dx_cor if hf
 
 *PNEU
-gen pneu = icd2==4800 | icd2==4801 | icd2==4802 | icd2==4803 | icd2==4808 | icd2==4809 | icd2==481 | icd2==4820 | icd2==4821 | icd2==4822 | icd2==48230 | icd2==48231 | icd2==48232 | icd2==48239 | icd2==48240 | icd2==48241 | icd2==48242 | icd2==48249 | icd2==48281 | icd2==48282 | icd2==48283 | icd2==48284 | icd2==48289 | icd2==4829 | icd2==4830 | icd2==4831 | icd2==4838 | icd2==485 | icd2==486 | icd2==4870 | icd2==48811 | icd2==5070
-tab inpat_dx_cor if pneu
+gen pn = icd2==4800 | icd2==4801 | icd2==4802 | icd2==4803 | icd2==4808 | icd2==4809 | icd2==481 | icd2==4820 | icd2==4821 | icd2==4822 | icd2==48230 | icd2==48231 | icd2==48232 | icd2==48239 | icd2==48240 | icd2==48241 | icd2==48242 | icd2==48249 | icd2==48281 | icd2==48282 | icd2==48283 | icd2==48284 | icd2==48289 | icd2==4829 | icd2==4830 | icd2==4831 | icd2==4838 | icd2==485 | icd2==486 | icd2==4870 | icd2==48811 | icd2==5070
+tab inpat_dx_cor if pn
 
 * COPD
 tab inpat_dx_cor if substr(inpat_dx_cor,1,3)=="491" | substr(inpat_dx_cor,1,3)=="492" | substr(inpat_dx_cor,1,3)=="493" | substr(inpat_dx_cor,1,3)=="496" | substr(inpat_dx_cor,1,3)=="518" | substr(inpat_dx_cor,1,3)=="799"
@@ -44,6 +44,14 @@ gen stroke = icd2==43301 | icd2==43311 | icd2==43321 | icd2==43331 | icd2==43381
 tab inpat_dx_cor if stroke
 
 drop icd2
+
+*identify cardiorespiratory conditions from the control groups
+split inpat_dx_cor, p(".")
+destring inpat_dx_cor1, replace
+gen x = inpat_dx_cor1>=390 & inpat_dx_cor1 <= 519
+bys admitID_num: egen cardioresp = max(x)
+drop x inpat_dx inpat_dx_cor icd-icddesc inpat_dx_cor1 inpat_dx_cor2
+duplicates drop
 
 *restrict to fy 2013-2015 data
 
@@ -58,9 +66,9 @@ assert fy!=.
 drop if fy==2012
 
 *create data unique at the admission ID-office ID level
-keep admissionclie offid_nu ami hf pneu copd stroke provider_hosp fy
+keep admissionclie offid_nu ami hf pn copd stroke cardioresp provider_hosp fy
 duplicates drop
-collapse (max) ami hf pneu copd stroke, by(admissionclie offid_nu provider_hosp fy)
+collapse (max) ami hf pn copd stroke cardioresp, by(admissionclie offid_nu provider_hosp fy)
 duplicates tag admissionclie offid_nu, gen(dup)
 assert dup==0
 drop dup
@@ -71,38 +79,18 @@ save `an'
 *-----------------------------
 
 * create visit-level data
-
-*first get epi ID by merging with admission ID - episode ID xwalk
-use `an', clear
-keep admissionclientsocid fy provider_hosp
-duplicates drop
-merge 1:m admissionclientsocid using epiid_admitID, keep(1 3) nogen
-*all matched
-
-*drop if matched to multiple episodes
-duplicates tag admissionclientsocid, gen(dup)
-drop if dup > 0
-drop dup
-
-*merge with visit-level data for the episodes
-rename admissionclie admissionclie_str
-merge 1:m epiid using epi_visit, keep(1 3) nogen
-*all matched
+use epi_visit, clear
 drop if offid_nu ==.
+tostring admissionclientsocid, gen(admissionclientsocid_str) format("%11.0f")
 drop admissionclientsocid
-rename admissionclie_str admissionclientsocid
+rename admissionclientsocid_str admissionclientsocid
 
-foreach cc in "ami" "hf" "pneu" "copd" {
-  tab `cc'
-  rename `cc' `cc'_epi
+foreach cc in "ami" "hf" "pneu" "pneu_new" "copd" {
+  capture drop `cc'
 }
 
-*get updated target condition indicators from the above data
-merge m:1 admissionclientsocid using `an', keepusing(ami hf pneu copd stroke) keep(1 3) nogen
-foreach cc in "ami" "hf" "pneu" "copd" {
-  drop `cc'_epi
-}
-drop pneu_new
+*merge with sample patients for our project
+merge m:1 admissionclientsocid using `an', keep(3) nogen
 
 *drop episodes that had a visit on the day of readmission
 sort epiid visitdate
@@ -144,6 +132,32 @@ count if i==1
 drop i
 
 duplicates drop
+
+*-------------
+*create 30-day readmission indicator in the first week (turn off if the readmission occurred after first week)
+
+*create episode level 30-day hospital readmission indicator
+gen days2hosp = firsthospdate - inpat_dcd
+gen start_1stwk = fvd
+gen end_1stwk = fvd+6
+gen hospoccur_1stwk = firsthospdate >= start_1stwk & firsthospdate <= end_1stwk
+assert hospoccur_1stwk==0 if firsthospdate==.
+
+gen hashosp30 = hashosp * (days2hosp <= 30)
+gen hashosp30_1stwk1 = hashosp * (days2hosp <= 30) * hospoccur_1stwk
+gen hashosp30_1stwk0 = hashosp * (days2hosp <= 30) * (1-hospoccur_1stwk)
+assert (hashosp30_1stwk1+ hashosp30_1stwk0==1 ) |  (hashosp30_1stwk1 + hashosp30_1stwk0==0)
+assert (hashosp30_1stwk1==1 | hashosp30_1stwk0==1 ) if hashosp30==1
+
+lab var hashosp30 "30-day hospital readmission"
+lab var hashosp30_1stwk1 "30-day hospital readmission in the first week"
+lab var hashosp30_1stwk0 "30-day hospital readmission beyond the first week"
+
+*-------------
+*define readmission within 30 days of the start of the episode
+gen days2hosp_fromHHstart = firsthospdate - fvd
+gen hashosp30_fromHHstart = hashosp * (days2hosp_fromHHstart <= 30)
+lab var hashosp30_fromHHstart "readmission within 30 days of the start of the episode"
 
 compress
 save HHeffort_visit, replace

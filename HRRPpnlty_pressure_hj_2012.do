@@ -1,5 +1,14 @@
 *compute penalty pressure: use 2012 data, product of share of the office j's patients that come from hosp h and h's penalty rate
 
+// *input data
+// - referralhosp_mcrID.dta
+// - referral.dta
+// - officeID_foradmitID.dta
+// - hrrp_penalty.xlsx
+// - CMShospdisch_tohh.dta
+*output data
+// - HRRPpnlty-pressure-hj-2012-v2.dta
+
 loc path /home/hcmg/kunhee/Labor/Bayada_data
 loc gph /home/hcmg/kunhee/Labor/gph
 loc reg /home/hcmg/kunhee/Labor/regresults
@@ -109,20 +118,45 @@ tempfile shref_hj2012
 save `shref_hj2012'
 
 *--------------
-*get 2012 penalty rate to calculate penalty pressure for each office j - hospital h pair later
-use hrrp_penalty, clear
-keep totpenalty2012 prvdr_num penalty2012_*
-duplicates drop
+*Bring in raw 2012 penalty rate data and save as stata file;
+*-------------------------------------------------------------------------------
+import excel using hrrp_penalty.xlsx, firstrow sheet("ami") clear
+ren cpnltrevprop penrate_ami
+recode penrate_ami (mis=0)
+keep hospital penrate_ami
 
-*rename fyear fy
-destring prvdr_num, replace
-
-foreach v of varlist *penalty* {
-  replace `v' = 0 if `v'==.
-}
 
 tempfile hrrp_penalty
-save `hrrp_penalty'
+save `hrrp_penalty', replace
+
+import excel using hrrp_penalty.xlsx, firstrow sheet("chf") clear
+ren cpnltrevprop penrate_hf
+recode penrate_hf (mis=0)
+keep hospital penrate_hf
+
+tempfile hrrp_hf
+save `hrrp_hf', replace
+
+import excel using hrrp_penalty.xlsx, firstrow sheet("pneum") clear
+ren cpnltrevprop penrate_pn
+recode penrate_pn (mis=0)
+keep hospital penrate_pn
+
+tempfile hrrp_pn
+save `hrrp_pn', replace
+
+use `hrrp_penalty', clear
+merge 1:1 hospital using `hrrp_hf'
+drop _m
+merge 1:1 hospital using `hrrp_pn'
+drop _m
+ren hospital prvdr_num
+destring prvdr_num, force replace
+sort prvdr_num
+
+recode penrate_ami penrate_hf penrate_pn (mis=0)
+
+save `hrrp_penalty', replace
 
 *--------------
 * merge the hospital's referral share to office data
@@ -135,47 +169,10 @@ merge m:1 prvdr_num using `hrrp_penalty', keep(3) nogen
 *compute penalty pressure: use 2012 data, product of share of the office j's patients that come from hosp h and h's penalty rate
 sort offid_nu prvdr_num
 
-gen pnltprs = shref_hj * totpenalty2012
-
-*create the z-score penalty pressure
-egen z_pnltprs = std(pnltprs)
-sum z_pnltprs, de
-
-rename penalty2012_chf penalty2012_hf
-rename penalty2012_pneum penalty2012_pn
-
 foreach d in "ami" "hf" "pn" {
   capture drop pnltprs_`d'
-  gen pnltprs_`d' = shref_hj * penalty2012_`d'
-
-  capture drop z_pnltprs_`d'
-  egen z_pnltprs_`d' = std(pnltprs_`d')
-  sum z_pnltprs_`d'
+  gen pnltprs_`d' = shref_hj * penrate_`d'
 }
-
-*--------------
-*use actual penatly rate in 2013 & reconstruct the penalty pressure
-preserve
-use hrrp_penalty, clear
-keep if fy==2013
-keep prvdr_num penalty
-duplicates drop
-destring prvdr_num, replace
-tempfile penalty13
-save `penalty13'
-restore
-
-merge m:1 prvdr_num using `penalty13', keep(1 3) nogen
-rename penalty penalty13
-
-*create the z-score penalty pressure
-gen pnltprs13 = shref_hj * penalty13
-egen z_pnltprs13 = std(pnltprs13)
-sum z_pnltprs13, de
-
-*create 2012 penalty rate for [AMI & HF] X share of office's volume from the hospital
-gen penalty2012_heart = penalty2012_ami + penalty2012_hf
-gen pnltprs_heart = penalty2012_heart * shref_hj
 
 tempfile tmp
 save `tmp'
@@ -209,32 +206,17 @@ tempfile sharetoBayada
 save `sharetoBayada'
 
 *--------------
-*add the predicted probability of penalty
+*create the final hospital-office level data by merging data on 2 penalty salience measures: 1) referral share X 2012 condition-specific penalty rate; 2) measure 1 X hospital's patient share going to each Bayada office
+
 use `tmp', clear
-merge m:1 prvdr_num using pred_pprob, keep(3) nogen
 
 merge 1:1 prvdr_num offid_nu using `sharetoBayada', keep(3) nogen keepusing(sharetoBayada)
 
+*penalty salience = 2012 penalty rate X office's referral share from each hospital X hospital's discharge share that went to Bayada
 foreach d in "ami" "hf" "pn" {
-  *penalty salience = 2012 predicted probability of penalty X office's referral share from each hospital
-  capture drop pnltprs_pred_`d'
-  gen pnltprs_pred_`d' = shref_hj * pnltprob_`d'
-
-  *penalty salience = 2012 predicted probability of penalty X office's referral share from each hospital X hospital's discharge share that went to Bayada
-  capture drop pnltprs_pred_hosp_`d'
-  gen pnltprs_pred_hosp_`d' = pnltprs_pred_`d' * sharetoBayada
-
-  *penalty salience = 2012 penalty rate X office's referral share from each hospital X hospital's discharge share that went to Bayada
   capture drop pnltprs_hosp_`d'
   gen pnltprs_hosp_`d' = pnltprs_`d' * sharetoBayada
 }
 
-*for the placebo test conditions, when calculating penalty pressure, use the median penalty rate for the hospital across the three target conditions for COPD and stroke b/c no penalty rate available for them
-
-*take the median 2012 penalty rate for the hospital across the 3 target conditions
-egen penalty2012_med = rowmedian(penalty2012_ami penalty2012_hf penalty2012_pn)
-
-gen pnltprs_med = shref_hj * penalty2012_med
-
 compress
-save HRRPpnlty_pressure_hj_2012, replace
+save HRRPpnlty_pressure_hj_2012-v2, replace
