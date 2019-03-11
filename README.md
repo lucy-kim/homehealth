@@ -4,7 +4,7 @@ This project explores topics around hospitals and home health care providers usi
 ## Location of data files
 Files used for this project are stored in the [Wharton's HPC Cluster](https://research-it.wharton.upenn.edu/documentation/), and specifically in the directory: `~/Labor`
 
-All data files are in the directory `~/Labor/Bayada_data`. All the processed data and raw files contained in subdirectories with descriptive names (e.g. all the raw CSV files containing information on home health patients are in the subdirectory `client_CSV`)
+All data files are in the directory `~/Labor/Bayada_data`. All the processed data and raw files contained in subdirectories with descriptive names.
 
 ## Project codes
 
@@ -13,7 +13,8 @@ The codes below are in chronological order.
 ### Create Stata data files from raw home health data files
 
 `initial_setup.sh`
-- Skip this step because they have all been run; this is just for reference to show all the raw data files that can be potentially used. (Not all these data were used for this project.)
+- Skip this step because they have all been run; this is just for reference to show all the raw data files that can be potentially used (Not all these data were used for this project.)
+- Code files listed here are not shared on this repository because of no need to run again
 
 ### Load data from other sources used for the project
 
@@ -29,7 +30,8 @@ The codes below are in chronological order.
 - create admission level data on patients referred by hospitals only and restrict to patients whose discharge/hospitalization dates are not right truncated due to the sample period limitation
 
 `HRRPpnlty_pressure_hj_2012.do`
-- compute penalty pressure: use 2012 data, product of share of the office j's patients that come from hosp h and h's penalty rate
+- compute penalty salience: use 2012 data, product of share of the office j's patients that come from hosp h and h's penalty rate
+- also compute alternative penalty salience measure used for robustness check
 
 `crHHeffort_visit.do`
 - create visit-level data before measuring home health agencies' effort level for each patient
@@ -52,3 +54,6 @@ The codes below are in chronological order.
 
 `crepilvl_rehosp_smpl2012.do`
 - create 2012 (baseline) patient sample to interpret the magnitude of our estimates, want to compare the effort levels on the healthiest and sickest people at baseline (2012)
+
+`anepilvl_rehosp_smpl2012.do`
+- analyze the difference in efforts spent between the healthiest (bottom quartile of severity score) and sickest (top quartile) people at baseline (2012) using the 2012 patient sample created above

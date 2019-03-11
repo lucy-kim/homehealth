@@ -19,14 +19,6 @@ loc officechars lnallepi lnnw_active_w
 
 loc sp `riskhosp' `demog' `comorbid' i.fy `officechars' `hospchars'
 
-// * 1000 more obs after correcting the data error
-// use epilvl_rehosp_smpl, clear
-// keep epiid
-// merge 1:1 epiid using epilvl_rehosp_smpl2, keep(1) nogen
-// keep epiid
-// save newly_added_pats, replace
-//
-// merge 1:1 epiid using epilvl_rehosp_smpl, keep(3) nogen
 *----------------------------------------------------------------------
 *create TM and MA samples
 forval x = 0/1 {
@@ -50,7 +42,9 @@ forval x = 0/1 {
 
 *selected outcomes
 *loc outcome lnvtc_tr_pay lnvtc_tr_pay_1stwk1 lnlov lnlov_1stwk1 freq_tnv freq_tnv_1stwk1 hashosp30 hashosp30_1stwk1
-loc outcome lnlov lnlov_1stwk1 lnlovsn lnlovsn_1stwk1 freq_tnv freq_tnv_1stwk1 freq_tnvsn freq_tnvsn_1stwk1 startHH_1day lnvtc_tr_pay lnvtc_tr_pay_1stwk1 lnvisit_tot_cost lnvisit_tot_cost_1stwk1 lnpayrate lnpayrate_1stwk1 lnvisit_travel_cost lnvisit_travel_cost_1stwk1 hashosp30 hashosp30_1stwk1
+*loc outcome lnlov lnlov_1stwk1 lnlovsn lnlovsn_1stwk1 freq_tnv freq_tnv_1stwk1 freq_tnvsn freq_tnvsn_1stwk1 startHH_1day lnvtc_tr_pay lnvtc_tr_pay_1stwk1 lnvisit_tot_cost lnvisit_tot_cost_1stwk1 lnpayrate lnpayrate_1stwk1 lnvisit_travel_cost lnvisit_travel_cost_1stwk1 hashosp30 hashosp30_1stwk1
+loc cost_per_day lnvtc_tr_pay_pd lnvtc_tr_pay_1stwk1_pd lnvisit_tot_cost_pd lnvisit_tot_cost_1stwk1_pd  lnpayrate_pd lnpayrate_1stwk1_pd lnvisit_travel_cost_pd lnvisit_travel_cost_1stwk1_pd
+loc outcome lnlov lnlov_1stwk1 lnlovsn lnlovsn_1stwk1 freq_tnv freq_tnv_1stwk1 freq_tnvsn freq_tnvsn_1stwk1 startHH_1day `cost_per_day' hashosp30 hashosp30_1stwk1
 
 loc pp1 ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn
 loc pp2 ami hf pn pnltprs_hosp_c_X_ami pnltprs_hosp_c_X_hf pnltprs_hosp_c_X_pn
@@ -115,8 +109,8 @@ replace group = "PN" if pn==1
 replace group = "Non-target" if hrrpcond==0
 assert group!=""
 
-gen sicker = .
 *use median for target vs non-target conditions separately
+gen sicker = .
 forval x = 0/1 {
   sum riskhosp if hrrpcond==`x', de
   loc p50 = `r(p50)'

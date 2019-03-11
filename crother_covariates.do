@@ -41,7 +41,7 @@ restore
 
 *get characteristics of the referring hospital
 use hosp_chars_cr, clear
-keep if fy >=2013 & fy <= 2015
+keep if fy >=2012 & fy <= 2015
 keep provid fy vi_hha teaching urban own_* size beds
 rename provid prvdr_num
 duplicates drop

@@ -125,7 +125,6 @@ ren cpnltrevprop penrate_ami
 recode penrate_ami (mis=0)
 keep hospital penrate_ami
 
-
 tempfile hrrp_penalty
 save `hrrp_penalty', replace
 

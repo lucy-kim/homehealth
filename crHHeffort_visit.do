@@ -19,29 +19,19 @@ replace icd2 = subinstr(icd2, ".", "",.)
 destring icd2, replace
 
 * AMI (from Table D.1.1 in 2016 report)
-tab inpat_dx_cor if substr(inpat_dx_cor,1,3)=="410"
 gen ami = icd2==41000 | icd2==41001 | icd2==41010 | icd2==41011 | icd2==41020 | icd2==41021 | icd2==41030 | icd2==41031 | icd2==41040 | icd2==41041 | icd2==41050 | icd2==41051 | icd2==41060 | icd2==41061 | icd2==41070 | icd2==41071 | icd2==41080 | icd2==41081 | icd2==41090 | icd2==41091
-tab inpat_dx_cor if ami
 
 * HF
-tab inpat_dx_cor if substr(inpat_dx_cor,1,3)=="402" | substr(inpat_dx_cor,1,3)=="404" | substr(inpat_dx_cor,1,3)=="428"
-
 gen hf = icd2==40201 | icd2==40211 | icd2==40291 | icd2==40401 | icd2==40403 | icd2==40411 | icd2==40413 | icd2==40491 | icd2==40493 | icd2==4280 | icd2==4281 | icd2==42820 | icd2==42821 | icd2==42822 | icd2==42823 | icd2==42830 | icd2==42831 | icd2==42832 | icd2==42833 | icd2==42840 | icd2==42841 | icd2==42842 | icd2==42843 | icd2==4289
-tab icd2 if hf
-tab inpat_dx_cor if hf
 
 *PNEU
 gen pn = icd2==4800 | icd2==4801 | icd2==4802 | icd2==4803 | icd2==4808 | icd2==4809 | icd2==481 | icd2==4820 | icd2==4821 | icd2==4822 | icd2==48230 | icd2==48231 | icd2==48232 | icd2==48239 | icd2==48240 | icd2==48241 | icd2==48242 | icd2==48249 | icd2==48281 | icd2==48282 | icd2==48283 | icd2==48284 | icd2==48289 | icd2==4829 | icd2==4830 | icd2==4831 | icd2==4838 | icd2==485 | icd2==486 | icd2==4870 | icd2==48811 | icd2==5070
-tab inpat_dx_cor if pn
 
 * COPD
-tab inpat_dx_cor if substr(inpat_dx_cor,1,3)=="491" | substr(inpat_dx_cor,1,3)=="492" | substr(inpat_dx_cor,1,3)=="493" | substr(inpat_dx_cor,1,3)=="496" | substr(inpat_dx_cor,1,3)=="518" | substr(inpat_dx_cor,1,3)=="799"
 gen copd = inpat_dx_cor=="491.2" | inpat_dx_cor=="491.21" | inpat_dx_cor=="491.22" | inpat_dx_cor=="491.8" | inpat_dx_cor=="491.9" | inpat_dx_cor=="492.8" | inpat_dx_cor=="493.20" | inpat_dx_cor=="493.21" | inpat_dx_cor=="493.22" | inpat_dx_cor=="496"
-tab inpat_dx_cor if copd
 
 *Stroke
 gen stroke = icd2==43301 | icd2==43311 | icd2==43321 | icd2==43331 | icd2==43381 | icd2==43391 | icd2==43401 | icd2==43411 | icd2==43491 | icd2==436
-tab inpat_dx_cor if stroke
 
 drop icd2
 

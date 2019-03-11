@@ -57,7 +57,7 @@ save `effort2'
 restore
 
 *--------------------------
-*restrict to episodes without a visit on the day of readmission (already done in crHHeffort_visit.do, so skip here), who had a hospital stay before HH, who didn't have AIDS or blooad anemia, < age 65
+*restrict to episodes to include in our analysis sample: e.g. without a visit on the day of readmission (already done in crHHeffort_visit.do, so skip here), who had a hospital stay before HH, who didn't have AIDS or blooad anemia, < age 65
 use HHeffort_visit, clear
 
 *restrict to patients who had a hospital stay before HH
@@ -68,11 +68,24 @@ drop if ynel16==1 | ynel25==1
 
 drop if age < 65
 
+*exclude patients referred hospitals not eligible for HRRP penalties
+*exclude patients referred by Maryland hospitals: first 2 characters of CCN is 21, 80 (https://www.cms.gov/medicare/provider-enrollment-and-certification/surveycertificationgeninfo/downloads/survey-and-cert-letter-16-09.pdf)
+gen first2 = substr(provider_hosp,1,2)
+drop if first2=="21" | first2=="80"
+
+*restric to short-term hospitals; i.e. not Critical Access Hospitals
+gen last4 = substr(provider_hosp,3,4)
+destring last4, replace
+keep if last4 >= 1 & last4 <= 879
+capture drop first2 last4
+
 *5-year age bins
 egen age5yr = cut(age), at(65,70,75,80,85,90,95)
 replace age5yr = 95 if age > 94
 assert age5yr!=.
 
+*-----------
+*create episode-level sample from visit-level sample
 loc riskhosp riskhosp_fall riskhosp_manyhos riskhosp_mental riskhosp_ge5 riskhosp_oth
 loc priorcond priorcond_dis priorcond_impd priorcond_cath priorcond_pain priorcond_mem priorcond_inc
 loc hrfactor hrfactor_alco hrfactor_drug hrfactor_smoke hrfactor_obese
@@ -107,6 +120,7 @@ tab time2hh
 *all the episodes started HH within 14 days from hospital discharge
 gen startHH_1day = time2hh <=1 if time2hh!=.
 
+*-------------------
 *merge with efforts data at the episode level
 merge 1:1 epiid using `effort1', keep(3) nogen
 merge 1:1 epiid using `effort2', keep(3) nogen
@@ -181,6 +195,7 @@ foreach d in "ami" "hf" "pn" {
   lab var `d' "Indicator for `u`d''"
 }
 
+*--------------------
 * create log-transformed outcome variables & label them
 foreach v of varlist vtc_tr_pay* visit_travel_cost* visit_tot_cost* payrate* epilength* lov* {
   gen ln`v' = ln(`v'+1)
@@ -206,6 +221,36 @@ foreach v in "lnlov" "lnlovsn" "freq_tnv" "freq_tnvsn" "lnvtc_tr_pay" "lnvisit_t
 
 loc outcome lnlov lnlov_1stwk1 lnlovsn lnlovsn_1stwk1 freq_tnv freq_tnv_1stwk1 freq_tnvsn freq_tnvsn_1stwk1 startHH_1day lnvtc_tr_pay lnvtc_tr_pay_1stwk1 lnvisit_tot_cost lnvisit_tot_cost_1stwk1 lnpayrate lnpayrate_1stwk1 lnvisit_travel_cost lnvisit_travel_cost_1stwk1 hashosp30 hashosp30_1stwk1
 des `outcome'
+
+*create cost per day
+gen nl = epilength - 7
+
+loc cc vtc_tr_pay visit_tot_cost payrate visit_travel_cost
+foreach v of varlist `cc' {
+   gen `v'_pd = `v'/epilength
+
+   loc c2 `v'_1stwk1
+   gen `c2'_pd = `c2'/7 if epilength >=7
+   replace `c2'_pd = `c2'/epilength if epilength <7
+   assert `c2'_pd !=. if `c2'!=.
+
+   loc c3 `v'_1stwk0
+   gen `c3'_pd = `c3'/nl if epilength >7
+   replace `c3'_pd = 0 if epilength <=7
+   assert `c3'_pd !=. if `c3'!=.
+}
+
+loc cc2 vtc_tr_pay vtc_tr_pay_1stwk1 vtc_tr_pay_1stwk0 visit_tot_cost visit_tot_cost_1stwk1 visit_tot_cost_1stwk0 payrate payrate_1stwk1 payrate_1stwk0 visit_travel_cost visit_travel_cost_1stwk1 visit_travel_cost_1stwk0
+foreach c of varlist `cc2' {
+ loc v `c'_pd
+ gen ln`v' = ln(`v'+1)
+}
+
+foreach v in "lnvtc_tr_pay" "lnvisit_tot_cost" "lnpayrate" "lnvisit_travel_cost" {
+  lab var `v'_pd "`l_`v'' per day"
+  lab var `v'_1stwk1_pd "`l_`v'' per day in the first week"
+  lab var `v'_1stwk0_pd "`l_`v'' per day beyond the first week"
+}
 
 
 compress
