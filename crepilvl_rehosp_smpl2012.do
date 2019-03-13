@@ -90,9 +90,6 @@ foreach cc in "ami" "hf" "pn" "pneu" "pneu_new" "copd" {
 *merge with sample patients for our project
 merge m:1 admissionclientsocid using `an', keep(3) nogen
 
-*restrict to episodes who ended care before 7/1/2012
-drop if lvd > mdy(6,30,2012)
-
 *drop episodes that had a visit on the day of readmission
 sort epiid visitdate
 gen hadvisit_onra = firsthospdate == visitdate & hashosp==1
