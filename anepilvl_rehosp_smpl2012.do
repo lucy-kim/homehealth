@@ -12,6 +12,7 @@ use epilvl_rehosp_smpl2012, clear
 keep if hrrpcond==1
 drop if stroke | copd
 assert stroke==0 & copd==0
+keep if tm==1
 
 *get the sickest & healthiest by looking at the quintile of the sum of risk of hospitalization categories at baseline
 capture drop riskhosp
@@ -22,7 +23,7 @@ sum riskhosp, de
 loc p25 = `r(p25)'
 loc p75 = `r(p75)'
 gen sickest = riskhosp >= `p75'
-gen healthiest = riskhosp <= `p25'
+gen healthiest = riskhosp < `p25'
 
 keep if sickest==1 | healthiest==1
 

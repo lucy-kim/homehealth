@@ -77,17 +77,21 @@ save `an'
 
 * create visit-level data
 use epi_visit, clear
+keep if nepi==1
 drop if offid_nu ==.
 tostring admissionclientsocid, gen(admissionclientsocid_str) format("%11.0f")
 drop admissionclientsocid
 rename admissionclientsocid_str admissionclientsocid
 
-foreach cc in "ami" "hf" "pneu" "pneu_new" "copd" {
+foreach cc in "ami" "hf" "pn" "pneu" "pneu_new" "copd" {
   capture drop `cc'
 }
 
 *merge with sample patients for our project
 merge m:1 admissionclientsocid using `an', keep(3) nogen
+
+*restrict to episodes who ended care before 7/1/2012
+drop if lvd > mdy(6,30,2012)
 
 *drop episodes that had a visit on the day of readmission
 sort epiid visitdate

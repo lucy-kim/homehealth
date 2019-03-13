@@ -75,7 +75,7 @@ tostring admissionclientsocid, gen(admissionclientsocid_str) format("%11.0f")
 drop admissionclientsocid
 rename admissionclientsocid_str admissionclientsocid
 
-foreach cc in "ami" "hf" "pneu" "pneu_new" "copd" {
+foreach cc in "ami" "hf" "pn" "pneu" "pneu_new" "copd" {
   capture drop `cc'
 }
 

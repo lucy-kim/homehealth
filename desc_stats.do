@@ -273,6 +273,13 @@ assert meanpp==0 if hrrpcond==0 | penalized==0
 sum meanpp if penalized & hrrpcond, de
 *median = .0061597
 
+*Median penalty salience among target patients across ALL hospitals, using the main measure
+sum meanpp if hrrpcond, de
+
+* Summary stats on penalty salience for target patients across all hospital, using the alternative, HHA's share-weighted measure 
+egen meanpp2 = rowmean(pnltprs_hosp_ami pnltprs_hosp_hf pnltprs_hosp_pn)
+sum meanpp2 if hrrpcond, de
+
 *Along similar lines (and this is mainly for my academic interest), if we split penalty salience into its components - what is the median penalty rate for a patient discharged from a penalized hospital and what is the median patient share of home health office for penalized hospitals
 
 *median penalty rate for a patient discharged from a penalized hospital
@@ -286,6 +293,10 @@ sum meanpr if penalized & hrrpcond, de
 *median patient share of home health office for a patient discharged from a penalized hospital
 sum shref_hj if penalized, de
 *median = .130064
+
+*---------------------------------
+
+*Median penalty salience among target patients across all hospitals, using the alternative, HHA's share-weighted measure =
 
 *---------------------------------
 *# states
