@@ -1,10 +1,31 @@
 # README for the home health projects
 This project explores topics around hospitals and home health care providers using proprietary data on the home health operations from a large multi-state home health care company operating 100+ offices. We are currently investigating the impact of hospital readmissions penalty program on downstream care providers' behaviors using these home health data.
 
-## Location of data files
-Files used for this project are stored in the [Wharton's HPC Cluster](https://research-it.wharton.upenn.edu/documentation/), and specifically in the directory: `~/Labor`
+Files used for this project (data, codes) are stored on the [Wharton's HPC Cluster](https://research-it.wharton.upenn.edu/documentation/), and specifically in the directory: `~/Labor`.
 
-All data files are in the directory `~/Labor/Bayada_data`. All the processed data and raw files contained in subdirectories with descriptive names.
+## Data Sources
+
+All data files are in the directory `~/Labor/Bayada_data`. Data file names are meant to be self-descriptive. I provide definitions for major variables in the data in a [data dictionary](https://drive.google.com/open?id=1xDtpwWqtwapdqyQj0SIBkwQtD0Cmm3G6fD6C07T91Y8).
+
+### Home health data from Bayada
+1. Admission-level data
+  - Master patient admission data on basic characteristics for 2012-2015: `pats_hospreferred.dta`
+  - Referral source data: `referralhosp_mcrID.dta`
+2. Episode-level data (an admission can span multiple episodes)
+  - `epi_visit.dta`
+3. Visit-level data
+
+### Hospital penalties data
+Atul constructed the 2012 HRRP penalties data for each hospital-condition (AMI, HF, Pneumonia) using the Medicare claims data.
+
+### Medicare Cost Report data
+I used
+
+### Hospitals' discharges to home health from Medicare inpatient claims data
+I construct hospitals'  from CMS inpatient claims data provided by Elena.
+`CMShospdisch_tohh.dta`
+
+hospital-week level counts of Medicare hospital discharges to home health destinations for 2011-2014 (Source: Elena's CMS data)
 
 ## Project codes
 
