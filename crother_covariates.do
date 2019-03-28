@@ -1,9 +1,6 @@
 *create data containing additional covariates: 1) total number of episodes going on, # active workers in the office on each day; 2) characteristics of the referring hospital
 
-loc path /home/hcmg/kunhee/Labor/Bayada_data
-loc gph /home/hcmg/kunhee/Labor/gph
-loc reg /home/hcmg/kunhee/Labor/regresults
-
+loc path /home/hcmg/kunhee/hrrp-home/data/
 cd `path'
 
 *1) get total number of episodes going on, # active workers in the office on each day

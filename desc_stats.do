@@ -1,8 +1,8 @@
 *Run descriptive stats
 
-loc path /home/hcmg/kunhee/Labor/Bayada_data
-loc gph /home/hcmg/kunhee/Labor/gph
-loc reg /home/hcmg/kunhee/Labor/regresults
+loc path /home/hcmg/kunhee/hrrp-home/data/
+loc reg /home/hcmg/kunhee/hrrp-home/output
+set matsize 11000
 
 cd `path'
 
@@ -19,32 +19,15 @@ loc officechars lnallepi lnnw_active_w
 
 loc sp `riskhosp' `demog' `comorbid' i.fy `officechars' `hospchars'
 
-*create TM and MA samples
-forval x = 0/1 {
-  use epilvl_rehosp_smpl, clear
-
-  *drop if had a visit on the day of readmission
-  *keep if hadvisit_onra==0
-  assert ma + tm==1
-
-  preserve
-  keep if tm==`x'
-  count
-  tempfile smpl_tm`x'
-  save `smpl_tm`x''
-  restore
-}
 *---------------------------------
-*restrict to sample
+*create the TM patient sample used for main analysis
 loc pp1 ami hf pn pnltprs_c_X_ami pnltprs_c_X_hf pnltprs_c_X_pn
-loc pp2 ami hf pn pnltprs_hosp_c_X_ami pnltprs_hosp_c_X_hf pnltprs_hosp_c_X_pn
 
-*1) main test: AMI/HF/PN vs control (whicch excludes COPD, Stroke, cardiorespiratory condition patients)
-use `smpl_tm1', clear
+use epilvl_rehosp_smpl, clear
+
+drop if fy==2012
+keep if tm==1
 drop if copd | stroke | (cardioresp & hrrpcond==0)
-tab hrrpcond
-*control group = 6846 patients
-assert hrrpcond_count <2
 
 loc n 1
 loc yv lnlov
@@ -54,74 +37,10 @@ keep if e(sample)
 tempfile insmpl
 save `insmpl'
 
-*---------------------------------
-*# referring hospitals
-use `insmpl', clear
-keep prvdr_num
-duplicates drop
-count
-*---------------------------------
-*proportion of episodes are 1 week or longer
-use `insmpl', clear
-keep epiid epilength
-gen gteq1wk = epilength >= 7
-tab gteq1wk
 
-*---------------------------------
-*what proportion of hospitals are penalized for at least 1 condition in our sample?
-use `insmpl', clear
-keep prvdr_num offid_nu shref_hj penrate_ami penrate_hf penrate_pn
-duplicates drop
-duplicates tag prvdr_num offid_nu, gen(dup)
-tab dup
-assert dup==0
-drop dup
-
-preserve
-keep prvdr_num penrate*
-duplicates drop
-count
-sum penrate*
-gen penalized = penrate_ami > 0 | penrate_hf > 0 | penrate_pn > 0
-tab penalized
-restore
-
-assert shref_hj!=.
-gen posshare = shref_hj > 0
-tab posshare
-
-gen pnltprs = shref_hj * (penrate_ami + penrate_hf + penrate_pn)
-gen pressure = pnltprs > 0
-tab pressure
-
-*---------------------------------
-*what are the top 5 conditions among non-target patients?
-use `insmpl', clear
-keep epiid hrrpcond
-duplicates drop
-merge 1:1 epiid using masterclientadmiss2, keep(1 3) nogen keepusing(clientid socdate_e category)
-
-keep if hrrpcond==0
-
-merge 1:m clientid socdate_e using inpat_dx, keep(1 3) nogen
-
-*keep only the 3 digits before period
-split inpat_dx_cor, p(".")
-
-keep inpat_dx_cor1 epiid category
-gen i = 1
-collapse (sum) freq = i, by(inpat_dx_cor1)
-gsort inpat_dx_cor1
-egen tot = sum(freq)
-gen pct = 100*freq /tot
-gen x = sum(pct)
-rename x cumulative_pct
-gsort -pct
-outsheet using `reg'/inpat_dx_icd_ranking.csv, replace names comma
-
-*-------------------
+*--------------------------------------
 *Table 1 : summary stats by target vs non-target condition and for all patients
-*-------------------
+*--------------------------------------
 use `insmpl', clear
 
 *count observations in each condition
@@ -152,16 +71,12 @@ lab var hashosp30 "30-day readmission rate"
 lab var vtc_tr_pay "Total cost index ($ / episode)"
 lab var visit_tot_cost "Visit cost"
 lab var payrate "Personnel cost"
-lab var vtc_tr_pay_pd "Total cost index ($ / day of episode)"
-lab var visit_tot_cost_pd "Visit cost per day"
-lab var payrate_pd "Personnel cost per day"
 lab var lov "Visit length (min)"
 lab var riskhosp_fall "Risk for hospitalization: History of 2+ falls"
 lab var riskhosp_manyhosp "Risk for hospitalization: 2+ hospitalizations"
 lab var riskhosp_mental "Risk for hospitalization: Recent decline in Mental"
 lab var riskhosp_ge5med "Risk for hospitalization: Take 5+ medications"
 lab var riskhosp_oth "Risk for hospitalization: Other"
-lab var ynchsum "Sum of 17 Charlson comorbidity indicators"
 lab var age "Age"
 lab var female "Female"
 lab var white "White"
@@ -175,7 +90,7 @@ lab var teaching "Teaching"
 lab var vi_hha "Have a hospital-based HHA"
 
 loc mainoutc nobs pr_c pnltprs_c hashosp30
-loc costoutc vtc_tr_pay visit_tot_cost payrate vtc_tr_pay_pd visit_tot_cost_pd payrate_pd
+loc costoutc vtc_tr_pay visit_tot_cost payrate
 loc effortoutc lov freq_tnv
 loc patchars `riskhosp' age female white
 loc hospchars small medium big own_np own_fp teaching urban vi_hha
@@ -188,6 +103,11 @@ order `mainoutc' `costoutc' `effortoutc' `patchars' `hospchars'
 bys hrrpcond: outreg2 using `reg'/summstats_bytarget.xls, replace sum(log) eqkeep(N mean) label dec(2)
 restore
 
+*for target patients, SD penalty rate & SD penalty salience
+sum pr_c pnltprs_c if hrrpcond
+* SD(pr_c) = .09
+* SD(pnltprs_c) = .043
+
 *summary stats for all patients
 preserve
 *count observations for all patients
@@ -198,10 +118,10 @@ order `mainoutc' `costoutc' `effortoutc' `patchars' `hospchars'
 outreg2 using `reg'/summstats_allpat.xls, replace sum(log) eqkeep(N mean) label dec(2)
 restore
 
-*----------------------
+*--------------------------------------------
 *Table A1. Comparison of Medicare population and study sample
 *B. for targeted patients, # patients in each target condition & episode length
-*----------------------
+*--------------------------------------------
 *create groupings for AMI, HF, PN, and non-target
 use `insmpl', clear
 keep if hrrpcond
@@ -216,10 +136,75 @@ lab val gp cond
 bys gp: egen nobs = sum(1)
 tab gp
 
-*mean episode length (days)
-sum epilength
+*mean episode length (days), male, white, age
+gen male = 1-female
+sum epilength male white age
 
 *manually type in the above info in Section B of Table A1
+
+*---------------------------------
+*# referring hospitals
+use `insmpl', clear
+keep prvdr_num
+duplicates drop
+count
+*---------------------------------
+*proportion of episodes are 1 week or longer
+use `insmpl', clear
+keep epiid epilength
+gen gteq1wk = epilength >= 7
+tab gteq1wk
+// 94% have >= 1 week duration
+*---------------------------------
+*what proportion of hospitals are penalized for at least 1 condition in our sample?
+use `insmpl', clear
+keep prvdr_num offid_nu shref_hj penrate_ami penrate_hf penrate_pn
+duplicates drop
+duplicates tag prvdr_num offid_nu, gen(dup)
+tab dup
+assert dup==0
+drop dup
+
+preserve
+keep prvdr_num penrate*
+duplicates drop
+count
+sum penrate*
+gen penalized = penrate_ami > 0 | penrate_hf > 0 | penrate_pn > 0
+tab penalized
+restore
+
+assert shref_hj!=.
+gen posshare = shref_hj > 0
+tab posshare
+
+gen pnltprs = shref_hj * (penrate_ami + penrate_hf + penrate_pn)
+gen pressure = pnltprs > 0
+tab pressure
+
+*---------------------------------
+*what are the top 5 conditions among non-target patients?
+use `insmpl', clear
+keep epiid hrrpcond clientid socdate_e category
+duplicates drop
+
+keep if hrrpcond==0
+
+merge 1:m clientid socdate_e using inpat_dx, keep(1 3) nogen
+
+*keep only the 3 digits before period
+split inpat_dx_cor, p(".")
+
+keep inpat_dx_cor1 epiid category
+gen i = 1
+collapse (sum) freq = i, by(inpat_dx_cor1)
+gsort inpat_dx_cor1
+egen tot = sum(freq)
+gen pct = 100*freq /tot
+gen x = sum(pct)
+rename x cumulative_pct
+gsort -pct
+outsheet using `reg'/inpat_dx_icd_ranking.csv, replace names comma
 
 *------------------
 *additional summary stats
@@ -237,25 +222,10 @@ sum epilength
 sum time2hh if hrrpcond
 
 *---------------------------------
-*Crude diff-in-diff : Mean outcomes for 4 different groups created by 2 axes: 1) zero penalty _rate_ (not salience) vs >0 penalty rate & 2) Target vs non-target conditions
+*What is the median penalty salience for patients that were discharged from a penalized hospital? In other words, the difference in penalty salience between being discharged by a non-penalized hospital (0) or for a non-targeted condition (0) vs. being discharged by the median penalized hospital. I think this may be a more meaningful measure to interpret the magnitude of the program on care and readmissions than using a generic 1 s.d. increase in penalty salience which may be much more or less than the above difference.
 
 use `insmpl', clear
 gen penalized = penrate_ami > 0 | penrate_hf > 0 | penrate_pn > 0
-
-preserve
-keep hashosp30 vtc_tr_pay vtc_tr_pay_pd penalized hrrpcond
-bys penalized hrrpcond: outreg2 using `reg'/did.xls, replace sum(log) label eqkeep(N mean)
-restore
-
-assert pnltprs_c!=.
-gen penalized_prs = pnltprs_c > 0
-
-preserve
-keep hashosp30 vtc_tr_pay vtc_tr_pay_pd penalized_prs hrrpcond
-bys penalized_prs hrrpcond: outreg2 using `reg'/did2.xls, replace sum(log) label eqkeep(N mean)
-restore
-*---------------------------------
-*What is the median penalty salience for patients that were discharged from a penalized hospital? In other words, the difference in penalty salience between being discharged by a non-penalized hospital (0) or for a non-targeted condition (0) vs. being discharged by the median penalized hospital. I think this may be a more meaningful measure to interpret the magnitude of the program on care and readmissions than using a generic 1 s.d. increase in penalty salience which may be much more or less than the above difference.
 
 assert pnltprs_ami!=.
 assert pnltprs_hf!=.
@@ -264,6 +234,7 @@ assert pnltprs_pn!=.
 *since the condition-specific penalty salience variables are not zero for non-target conditions, recode them to zero
 foreach d in "ami" "hf" "pn" {
   replace pnltprs_`d' = 0 if hrrpcond==0
+  replace pnltprs_hosp_`d' = 0 if hrrpcond==0
 }
 
 egen meanpp = rowmean(pnltprs_ami pnltprs_hf pnltprs_pn)
@@ -276,7 +247,7 @@ sum meanpp if penalized & hrrpcond, de
 *Median penalty salience among target patients across ALL hospitals, using the main measure
 sum meanpp if hrrpcond, de
 
-* Summary stats on penalty salience for target patients across all hospital, using the alternative, HHA's share-weighted measure 
+* Summary stats on penalty salience for target patients across all hospital, using the alternative, HHA's share-weighted measure
 egen meanpp2 = rowmean(pnltprs_hosp_ami pnltprs_hosp_hf pnltprs_hosp_pn)
 sum meanpp2 if hrrpcond, de
 
@@ -284,7 +255,6 @@ sum meanpp2 if hrrpcond, de
 
 *median penalty rate for a patient discharged from a penalized hospital
 egen meanpr = rowmean(penrate_ami penrate_hf penrate_pn)
-assert meanpr==0 if hrrpcond==0 | penalized==0
 
 * Get median-of-the-mean
 sum meanpr if penalized & hrrpcond, de
@@ -296,7 +266,11 @@ sum shref_hj if penalized, de
 
 *---------------------------------
 
-*Median penalty salience among target patients across all hospitals, using the alternative, HHA's share-weighted measure =
+*are the alternative measure smaller than penalty salience?
+foreach c in "ami" "hf" "pn" {
+  gen rat_alt_sal_`c' = pnltprs_hosp_`c'/pnltprs_`c'
+}
+sum rat_alt_sal_* if hrrpcond
 
 *---------------------------------
 *# states
@@ -316,11 +290,9 @@ tab addr_st
 
 *sample period
 use epilvl_rehosp_smpl, clear
-keep epiid visitdate_e
+drop if fy==2012
+keep epiid socdate_e
 duplicates drop
-merge 1:1 epiid using HHeffort_epilvl, keep(2 3) nogen
-sum visitdate_e
-tab visitdate_e if visitdate_e==19267
-* 01 Oct 12
-tab visitdate_e if visitdate_e==20250
-* 11 Jun 15
+sum socdate_e
+tab socdate_e if socdate_e==`r(min)' | socdate_e==`r(max)'
+* 01 Jul 12 - 11 Jun 15

@@ -1,80 +1,89 @@
-# README for the home health projects
-This project explores topics around hospitals and home health care providers using proprietary data on the home health operations from a large multi-state home health care company operating 100+ offices. We are currently investigating the impact of hospital readmissions penalty program on downstream care providers' behaviors using these home health data.
+# README for the home health effort project
+This project examines the impact of hospital readmissions reduction program (HRRP) on downstream care providers' behaviors using proprietary home health data.
 
-Files used for this project (data, codes) are stored on the [Wharton's HPC Cluster](https://research-it.wharton.upenn.edu/documentation/), and specifically in the directory: `~/Labor`.
+Files used for this project (data, codes, output) are stored on the [Wharton's HPC Cluster](https://research-it.wharton.upenn.edu/documentation/) in the directory: `/home/hcmg/kunhee/hrrp-home`.
+  - Data are in `~/data`
+  - Codes are in `~/codes`
+  - Regression tables/other output files in `~/output`
 
 ## Data Sources
 
-All data files are in the directory `~/Labor/Bayada_data`. Data file names are meant to be self-descriptive. I provide definitions for major variables in the data in a [data dictionary](https://drive.google.com/open?id=1xDtpwWqtwapdqyQj0SIBkwQtD0Cmm3G6fD6C07T91Y8).
+### Input data
+All data files are in the directory `/home/hcmg/kunhee/hrrp-home/data`. Data file names are meant to be self-descriptive. I provide definitions for major variables in the data in a [data dictionary](https://drive.google.com/open?id=1xDtpwWqtwapdqyQj0SIBkwQtD0Cmm3G6fD6C07T91Y8).
 
-### Home health data from Bayada
-1. Admission-level data
-  - Master patient admission data on basic characteristics for 2012-2015: `pats_hospreferred.dta`
-  - Referral source data: `referralhosp_mcrID.dta`
-2. Episode-level data (an admission can span multiple episodes)
-  - `epi_visit.dta`
+#### Home health data from Bayada
+1. Admission/episode-level data
+  - `pats_hospreferred.dta`: Base set of patient admissions during 2012-2015 for which the end of episode is not truncated
+  - `referralhosp_mcrID.dta`: Hospital referral source (with Medicare provider ID for the hospital) for each patient admission
+  - `referral.dta`: Referral source (from any place, including hospital) for each patient admission (this file doesn't have Medicare provider IDs)
+  - `inpat_dx.dta`: Inpatient diagnosis codes (ICD 9/10) for each admission; an admission can have multiple diagnosis codes associated and thus appear in multiple rows
+  - `officeID_foradmitID.dta`: Crosswalk showing office ID for each admission ID
 3. Visit-level data
+  - `epi_visit.dta`: All visit-level information provided to each patient in each visit
+4. Worker-level data
+  - `payrate.dta`: Pay rate per visit for each worker-week
+5. Office-level data
+  - `office.dta`: Office information, e.g. location
 
-### Hospital penalties data
-Atul constructed the 2012 HRRP penalties data for each hospital-condition (AMI, HF, Pneumonia) using the Medicare claims data.
+#### Hospital penalties data
+1. `hrrp_penalty.xlsx`: Atul constructed the 2012 HRRP penalties data for each hospital-condition (AMI, HF, Pneumonia) using the Medicare claims data.
 
-### Medicare Cost Report data
-I used
+#### Medicare Cost Report data
+- `hospchars.dta`
+- I used Medicare hospital cost report data for FY 2012-2015 available on the [CMS website](https://www.cms.gov/Research-Statistics-Data-and-Systems/Downloadable-Public-Use-Files/Cost-Reports/Cost-Reports-by-Fiscal-Year.html).
+- I modified the SAS programs shared on the [NBER HCRIS Data](https://www.nber.org/data/hcris.html) to extract the selected hospital characteristics of our interest.
+- For the full SAS programs I used to construct hospital-level panel data on key hospital characteristics for FY 2000-2016, see [codes](https://www.dropbox.com/sh/tf79t9rf2onzrkf/AAAWxi2A9wS_WC8t8cbia7Ora?dl=0).
 
-### Hospitals' discharges to home health from Medicare inpatient claims data
-I construct hospitals'  from CMS inpatient claims data provided by Elena.
-`CMShospdisch_tohh.dta`
+#### Hospitals' discharges to home health from Medicare inpatient claims data
+- `CMShospdisch_tohh.dta`
+- I aggregated hospital-week level counts of discharges to home health to get a total number of discharges to home health for each hospital in the baseline (FY 2012).
+- The hospital-week level data came from CMS inpatient claims data offered by [Elena Andreyeva](https://sites.google.com/site/elenaandreyevaecon/).
 
-hospital-week level counts of Medicare hospital discharges to home health destinations for 2011-2014 (Source: Elena's CMS data)
+### Intermediate data constructed by the below codes
+- `referral_share2012.dta`: Office-hospital level data on the share of hospital-originating referrals from each hospital to each office during 2012
+- `HRRPpnlty_pressure_hj_2012.dta`: Office-hospital level data on penalty salience (both main and alternative measures)
+- `HHeffort_visit.dta`: Patient visit-level data before applying the sample restriction rules
+- `resource_index.dta`: Data on home health costs (total and by subcategory) measuring resources spent for each episode-visit
+- `allepi.dta`: Office-day level number of ongoing episodes
+- `nw_active_worker.dta`: Office-day level number of active workers
+- `hosp_chars_cr.dta`: Hospital-level data on hospital characteristics for FY 2012-2015
+- `epilvl_rehosp_smpl.dta`: Patient episode-level data for FY 2012-2015 to be used for analysis
+  - This is a **key analysis sample file** *(warning: drop 2012 before running the main regression analysis)*.
+  - If one makes changes only in the regression analysis step but nothing in the data step, one can use this file and apply the change.
 
-## Project codes
+## Codes
 
 The codes below are in chronological order.
 
-### Create Stata data files from raw home health data files
+To run all the codes and replicate the work at once, one can submit a Shell script `run.sh` which will produce a single log file `filename_<JOB_ID>.log` containing output of all the codes run. To submit the job, enter `qsub run.sh` (for detailed advice, see the [Wharton HPC website](https://research-it.wharton.upenn.edu/tools/stata/))
 
-`initial_setup.sh`
-- Skip this step because they have all been run; this is just for reference to show all the raw data files that can be potentially used (Not all these data were used for this project.)
-- Code files listed here are not shared on this repository because of no need to run again
+### Construct penalty salience data
+1. `crreferral_share2012.do`
+  - Create hospital-office-FY level number of referrals and share of hospital-originating referrals out of all referrals
+2. `crhrrp_penalty.do`
+  - Create 2012 penalty rate data constructed from Medicare claims data
+3. `HRRPpnlty_pressure_hj_2012.do`
+  - Compute penalty salience := product of share of the office j's patients that come from hosp h and h's penalty rate in 2012
+  - Also compute alternative penalty salience measure used for robustness check
 
-### Load data from other sources used for the project
+### Construct other office or hospital characteristics data
+1. `crother_covariates.do`
+  - Create data containing additional covariates: 1) total number of episodes going on, # active workers in the office on each day; 2) characteristics of the referring hospital
 
-`CMShospdisch_tohh.do`
-- use hospital-week level counts of Medicare hospital discharges to home health destinations for 2011-2014 (Source: Elena's CMS data on inpatient discharge claims)
+### Construct patient samples for analysis
+1. `crHHeffort_visit.do`
+  - Create visit-level data before measuring home health agencies' effort level for each patient
+2. `crresource_index.do`
+  - Create a measure of resources spent on each patient--i.e. a summary index of care intensity based on spending
+3. `crepilvl_rehosp_smpl.do`
+  - Create episode-level data for FY 2012-2015 to be used for main analysis
 
-`costreport_hosp > format2552-10 > hospcr.sh` and then `crhosp_chars_cr.do`
-- Create cost report data for hospital characteristics
-
-### Create intermediary data files with useful variables and analysis samples
-
-`crpats_hospreferred.do`
-- create admission level data on patients referred by hospitals only and restrict to patients whose discharge/hospitalization dates are not right truncated due to the sample period limitation
-
-`HRRPpnlty_pressure_hj_2012.do`
-- compute penalty salience: use 2012 data, product of share of the office j's patients that come from hosp h and h's penalty rate
-- also compute alternative penalty salience measure used for robustness check
-
-`crHHeffort_visit.do`
-- create visit-level data before measuring home health agencies' effort level for each patient
-
-`crresource_index.do`
-- create a measure of resources spent on each patient--i.e. a summary index of care intensity based on spending
-
-`crother_covariates.do`
-- create data containing additional covariates: 1) total number of episodes going on, # active workers in the office on each day; 2) characteristics of the referring hospital
-
-`crepilvl_rehosp_smpl.do`
-- create episode-level data starting for fy 2013-2015 where fy is a year ending June
-
-### Analysis files
-`anHHeffort_readmit.do`
-- Main regression analysis with heterogeneity and robustness check analyses: examine the impact of the referring hospitals' HRRP penalty pressure on HHAs' efforts on patients
-
-`desc_stats.do`
-- produce descriptive stats
-
-`crepilvl_rehosp_smpl2012.do`
-- create 2012 (baseline) patient sample to interpret the magnitude of our estimates, want to compare the effort levels on the healthiest and sickest people at baseline (2012)
-
-`anepilvl_rehosp_smpl2012.do`
-- analyze the difference in efforts spent between the healthiest (bottom quartile of severity score) and sickest (top quartile) people at baseline (2012) using the 2012 patient sample created above
+### Regression and descriptive analysis
+1. `anHHeffort_readmit.do`
+  - Main regression analysis with heterogeneity and robustness check analyses: examine the impact of the referring hospitals' HRRP penalty pressure on HHAs' efforts on patients
+  - Produce regression results shown in **Table 2-6 and A3**
+2. `desc_stats.do`
+  - Produce descriptive statistics referenced in the script and shown in **Table 1, A1 Panel B**
+3. `anepilvl_rehosp_smpl2012.do`
+  - Analyze the difference in efforts spent between the healthiest (bottom quartile of severity score) and sickest (top quartile) people at baseline (2012) using the 2012 patient sample
+  - Produce results shown in **Table A2**

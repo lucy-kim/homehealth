@@ -1,9 +1,6 @@
 *create visit-level data before measuring home health agencies' effort level for each patient
 
-loc path /home/hcmg/kunhee/Labor/Bayada_data
-loc gph /home/hcmg/kunhee/Labor/gph
-loc reg /home/hcmg/kunhee/Labor/regresults
-
+loc path /home/hcmg/kunhee/hrrp-home/data/
 cd `path'
 
 *tag AMI, HF, PNEU, COBG conditions
@@ -53,7 +50,6 @@ forval y=2012/2016 {
   replace fy = `y' if socdate >= mdy(7,1,`yl1') & socdate <= mdy(6,30,`y')
 }
 assert fy!=.
-drop if fy==2012
 
 *create data unique at the admission ID-office ID level
 keep admissionclie offid_nu ami hf pn copd stroke cardioresp provider_hosp fy
@@ -90,21 +86,29 @@ drop if max==1
 drop max hadvisit_onra
 
 * duration of episode: make sure we have single episode cases
-capture drop epilength
-egen llvd = rowmax(firsthospdate lvd)
-format llvd %d
-gen epilength = llvd - fvd + 1
+keep if nepi==1
+drop nepi
 
-sort epiid visitdate
-bys epiid: gen i =_n==1
-count if i==1
-*54K episodes
-tab epilength if i==1
-drop if epilength > 60
+capture drop epilength
+egen f = rowmin(visitdate socdate2 epidate2 fvd)
+egen l = rowmax(visitdate firsthospdate lvd)
+
+bys admissionclientsocid: egen firstday = min(f)
+bys admissionclientsocid: egen lastday = max(l)
+format lastday %d
+format firstday %d
+
+gen epilength = lastday-firstday+1
+
+assert epilength <= 60
+drop lvd fvd
 
 *create indicators for the 1st week, 2nd week, 1st 2 weeks
-assert fvd==visitd if i==1
-gen dayidx = visitd - fvd + 1
+sort epiid visitdate
+bys epiid: gen i =_n==1
+assert visitd >= firstday if i==1
+
+gen dayidx = visitd - firstday + 1
 gen wkidx = 1 if dayidx <= 7
 forval x=2/9 {
   replace wkidx = `x' if dayidx > 7*(`x'-1) & dayidx <= 7*`x'
@@ -113,13 +117,6 @@ assert wkidx!=.
 assert wkidx ==2 if dayidx > 7 & dayidx <= 14
 
 gen firstwk = dayidx <= 7
-gen first2wk = dayidx <= 14
-gen second_lastwk = wkidx!=1
-
-count if epilength > 14 & i==1
-count if i==1
-*78% of episodes had duration of > 2 weeks
-drop i
 
 duplicates drop
 
@@ -128,16 +125,17 @@ duplicates drop
 
 *create episode level 30-day hospital readmission indicator
 gen days2hosp = firsthospdate - inpat_dcd
-gen start_1stwk = fvd
-gen end_1stwk = fvd+6
+gen start_1stwk = firstday
+gen end_1stwk = firstday+6
 gen hospoccur_1stwk = firsthospdate >= start_1stwk & firsthospdate <= end_1stwk
 assert hospoccur_1stwk==0 if firsthospdate==.
+assert firsthospdate<=firstday+6 if hospoccur_1stwk
 
 gen hashosp30 = hashosp * (days2hosp <= 30)
 gen hashosp30_1stwk1 = hashosp * (days2hosp <= 30) * hospoccur_1stwk
 gen hashosp30_1stwk0 = hashosp * (days2hosp <= 30) * (1-hospoccur_1stwk)
-assert (hashosp30_1stwk1+ hashosp30_1stwk0==1 ) |  (hashosp30_1stwk1 + hashosp30_1stwk0==0)
-assert (hashosp30_1stwk1==1 | hashosp30_1stwk0==1 ) if hashosp30==1
+assert (hashosp30_1stwk1+ hashosp30_1stwk0==1) |  (hashosp30_1stwk1 + hashosp30_1stwk0==0)
+assert (hashosp30_1stwk1==1 | hashosp30_1stwk0==1) if hashosp30==1
 
 lab var hashosp30 "30-day hospital readmission"
 lab var hashosp30_1stwk1 "30-day hospital readmission in the first week"
@@ -145,7 +143,7 @@ lab var hashosp30_1stwk0 "30-day hospital readmission beyond the first week"
 
 *-------------
 *define readmission within 30 days of the start of the episode
-gen days2hosp_fromHHstart = firsthospdate - fvd
+gen days2hosp_fromHHstart = firsthospdate - firstday
 gen hashosp30_fromHHstart = hashosp * (days2hosp_fromHHstart <= 30)
 lab var hashosp30_fromHHstart "readmission within 30 days of the start of the episode"
 

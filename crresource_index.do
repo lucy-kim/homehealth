@@ -1,10 +1,7 @@
 * create a measure of resources spent on each patient--i.e. a summary index of care intensity based on spending
 *get weekly number of visits & salary for each worker
 
-loc path /home/hcmg/kunhee/Labor/Bayada_data
-loc gph /home/hcmg/kunhee/Labor/gph
-loc reg /home/hcmg/kunhee/Labor/regresults
-
+loc path /home/hcmg/kunhee/hrrp-home/data/
 cd `path'
 
 *----------------------------------------

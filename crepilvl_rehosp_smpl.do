@@ -1,23 +1,30 @@
 * create episode-level data starting for fy 2013-2015 where fy is a year ending June
 
-loc path /home/hcmg/kunhee/Labor/Bayada_data
-loc gph /home/hcmg/kunhee/Labor/gph
-loc reg /home/hcmg/kunhee/Labor/regresults
-
+loc path /home/hcmg/kunhee/hrrp-home/data/
 cd `path'
 
 *construct effort measures using the visit-level data
 use HHeffort_visit, clear
 
-*instead of dropping, recode to missing if visit length < p1 or > p99
+*drop episodes that have outlier visit lengths < p1 or > p99
 drop if lov==0
 replace lov = lov *60
-sum lov, de
+sum lov if fy!=2012, de
 loc p1 = `r(p1)'
 loc p99 = `r(p99)'
 gen x = lov < `p1' | lov > `p99'
 bys epiid: egen outlierLOV = max(x)
-drop if outlierLOV==1
+list epiid lov x outlier  if epiid==112989
+drop if outlierLOV==1 & fy!=2012
+
+drop x outlierLOV
+sum lov if fy==2012, de
+loc p1 = `r(p1)'
+loc p99 = `r(p99)'
+gen x = lov < `p1' | lov > `p99'
+bys epiid: egen outlierLOV = max(x)
+drop if outlierLOV==1 & fy==2012
+
 drop x outlierLOV
 
 *drop visits if visittime is missing
@@ -96,9 +103,14 @@ loc demog `ages' female white noassist livealone `ins'
 loc comorbid ynch* `overallst' `hrfactor' `priorcond'
 
 loc chars `comorbid' `riskhosp' `demog'
-loc vars epiid provider_hosp socdate2 offid_nu clientid fy inpat_dcd ami hf pn copd stroke cardioresp hashosp* days2hosp firsthospdate age
+loc vars epiid provider_hosp socdate2 offid_nu clientid fy inpat_dcd ami hf pn copd stroke cardioresp hashosp* days2hosp firsthospdate age clientid socdate_e category
 keep `chars' `vars'
 duplicates drop
+
+*assert data are episode level
+duplicates tag epiid, gen(dup)
+assert dup==0
+drop dup
 
 * create a severity measure: sum of risk of hospitalization categories at baseline
 capture drop riskhosp
@@ -107,11 +119,6 @@ tab riskhosp
 
 *create indicator for whether episode had 4 HRRP conditions
 gen hrrpcond = ami==1 | hf==1 | pn==1
-
-*Are there patients having multiple conditions? ~1000 pats have 2-4 conditions
-egen ss = rowtotal(ami hf pn copd stroke)
-tab ss
-drop ss
 
 *Indicator for whether the HH episode started within 1 day from hospital discharge
 gen time2hh = socdate2 - inpat_dcdate_e
@@ -156,7 +163,7 @@ drop if hrrpcond_count > 1
 
 *------------------
 *merge with data on other covariates
-rename socdate visitdate_e
+rename socdate2 visitdate_e
 merge m:1 offid_nu visitdate_e using allepi, keep(1 3) nogen
 merge m:1 offid_nu visitdate_e using nw_active_worker, keep(1 3) nogen
 
@@ -166,7 +173,7 @@ merge m:1 prvdr_num fy using hospchars, keep(3) nogen
 
 *-------------
 *merge by patient's referring hospital and office, the penalty pressure data
-merge m:1 offid_nu prvdr_num using HRRPpnlty_pressure_hj_2012-v2, keep(3) nogen keepusing(pnltprs* penrate* shref_hj)
+merge m:1 offid_nu prvdr_num using HRRPpnlty_pressure_hj_2012, keep(3) nogen keepusing(pnltprs* penrate* shref_hj)
 
 *create a single penalty pressure variable containing pressure for each condition
 gen pnltprs_c = .
@@ -221,37 +228,6 @@ foreach v in "lnlov" "lnlovsn" "freq_tnv" "freq_tnvsn" "lnvtc_tr_pay" "lnvisit_t
 
 loc outcome lnlov lnlov_1stwk1 lnlovsn lnlovsn_1stwk1 freq_tnv freq_tnv_1stwk1 freq_tnvsn freq_tnvsn_1stwk1 startHH_1day lnvtc_tr_pay lnvtc_tr_pay_1stwk1 lnvisit_tot_cost lnvisit_tot_cost_1stwk1 lnpayrate lnpayrate_1stwk1 lnvisit_travel_cost lnvisit_travel_cost_1stwk1 hashosp30 hashosp30_1stwk1
 des `outcome'
-
-*create cost per day
-gen nl = epilength - 7
-
-loc cc vtc_tr_pay visit_tot_cost payrate visit_travel_cost
-foreach v of varlist `cc' {
-   gen `v'_pd = `v'/epilength
-
-   loc c2 `v'_1stwk1
-   gen `c2'_pd = `c2'/7 if epilength >=7
-   replace `c2'_pd = `c2'/epilength if epilength <7
-   assert `c2'_pd !=. if `c2'!=.
-
-   loc c3 `v'_1stwk0
-   gen `c3'_pd = `c3'/nl if epilength >7
-   replace `c3'_pd = 0 if epilength <=7
-   assert `c3'_pd !=. if `c3'!=.
-}
-
-loc cc2 vtc_tr_pay vtc_tr_pay_1stwk1 vtc_tr_pay_1stwk0 visit_tot_cost visit_tot_cost_1stwk1 visit_tot_cost_1stwk0 payrate payrate_1stwk1 payrate_1stwk0 visit_travel_cost visit_travel_cost_1stwk1 visit_travel_cost_1stwk0
-foreach c of varlist `cc2' {
- loc v `c'_pd
- gen ln`v' = ln(`v'+1)
-}
-
-foreach v in "lnvtc_tr_pay" "lnvisit_tot_cost" "lnpayrate" "lnvisit_travel_cost" {
-  lab var `v'_pd "`l_`v'' per day"
-  lab var `v'_1stwk1_pd "`l_`v'' per day in the first week"
-  lab var `v'_1stwk0_pd "`l_`v'' per day beyond the first week"
-}
-
 
 compress
 save epilvl_rehosp_smpl, replace
