@@ -26,7 +26,7 @@ All data files are in the directory `/home/hcmg/kunhee/hrrp-home/data`. Data fil
   - `office.dta`: Office information, e.g. location
 
 #### Hospital penalties data
-1. `hrrp_penalty.xlsx`: Atul constructed the 2012 HRRP penalties data for each hospital-condition (AMI, HF, Pneumonia) using the Medicare claims data.
+- `hrrp_penalty.xlsx`: Atul constructed the 2012 HRRP penalties data for each hospital-condition (AMI, HF, Pneumonia) using the Medicare claims data.
 
 #### Medicare Cost Report data
 - `hospchars.dta`
