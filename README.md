@@ -53,9 +53,11 @@ All data files are in the directory `/home/hcmg/kunhee/hrrp-home/data`. Data fil
 
 ## Codes
 
-The codes below are in chronological order.
+Run the codes below in chronological order.
 
-To run all the codes and replicate the work at once, one can submit a Shell script `run.sh` which will produce a single log file `filename_<JOB_ID>.log` containing output of all the codes run. To submit the job, enter `qsub run.sh` (for detailed advice, see the [Wharton HPC website](https://research-it.wharton.upenn.edu/tools/stata/))
+To run all the codes and replicate the work at once, one can submit a Shell script `run.sh` (located in `~/codes`). Running this will produce a single log file `filename_<JOB_ID>.log` (to be created in `~/output`) showing output of all the codes (i.e. do-files) run.
+
+To submit the job, locate to `/home/hcmg/kunhee/hrrp-home/codes` and enter `qsub run.sh` (for detailed advice, see the [Wharton HPC website](https://research-it.wharton.upenn.edu/tools/stata/))
 
 ### Construct penalty salience data
 1. `crreferral_share2012.do`
